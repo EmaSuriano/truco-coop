@@ -60,9 +60,21 @@
     &nbsp;|&nbsp;
     <span class="peer">■ PEERS</span> connected: <span id="peerCount">0</span>
   </div>
+  <div id="scoreBoard">
+    <div class="scoreCol">
+      <div class="scoreName" id="scoreUsLabel">US</div>
+      <div class="scoreNum"><span id="scoreUs">0</span><span class="scoreCap" id="scoreUsCap">/15</span></div>
+    </div>
+    <div id="turnBanner">—</div>
+    <div class="scoreCol them">
+      <div class="scoreName" id="scoreThemLabel">THEM</div>
+      <div class="scoreNum"><span id="scoreThem">0</span><span class="scoreCap" id="scoreThemCap">/15</span></div>
+    </div>
+  </div>
   <canvas id="gameCanvas"></canvas>
   <div id="chantBar">
     <img class="chantFlourish" alt="" aria-hidden="true">
+    <div id="actionHint"></div>
     <button id="btnEnvido" disabled>Envido</button>
     <button id="btnReal" disabled>Real Envido</button>
     <button id="btnFalta" disabled>Falta</button>
