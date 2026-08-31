@@ -5,7 +5,6 @@ import {
   HEIGHT,
   MAX_SEATS,
   TEAM_COUNT,
-  TARGET,
   MALAS,
   HOST_COLOR,
   JOIN_COLOR,
@@ -52,6 +51,7 @@ type Pub = {
   winnerTeam: number | null
   seatsFilled: number
   seatCount: number
+  target: number
   legal: string[][]
   reveal: Reveal[]
   handPoints: number
@@ -114,17 +114,20 @@ function emptyLegal(): string[][] {
   return Array.from({ length: MAX_SEATS }, () => [])
 }
 
-function faltaPts(scores: number[], callingTeam: number): number {
+function faltaPts(scores: number[], callingTeam: number, target: number): number {
+  if (target <= MALAS) {
+    return Math.max(1, target - Math.max(...scores))
+  }
   const allMalas = scores.every((s) => s < MALAS)
   if (allMalas) {
     const opponent = (callingTeam + 1) % TEAM_COUNT
-    return TARGET - scores[opponent]!
+    return target - scores[opponent]!
   }
-  return TARGET - Math.max(...scores)
+  return target - Math.max(...scores)
 }
 
-function envidoWant(ladder: string[], scores: number[], callingTeam: number): number {
-  if (ladder.includes('falta')) return faltaPts(scores, callingTeam)
+function envidoWant(ladder: string[], scores: number[], callingTeam: number, target: number): number {
+  if (ladder.includes('falta')) return faltaPts(scores, callingTeam, target)
   const key = ladder.join('+')
   if (key === 'envido') return 2
   if (key === 'real') return 3
@@ -134,9 +137,9 @@ function envidoWant(ladder: string[], scores: number[], callingTeam: number): nu
   return 2
 }
 
-function envidoNo(ladder: string[], scores: number[], callingTeam: number): number {
+function envidoNo(ladder: string[], scores: number[], callingTeam: number, target: number): number {
   if (ladder.length <= 1) return 1
-  return envidoWant(ladder.slice(0, -1), scores, callingTeam)
+  return envidoWant(ladder.slice(0, -1), scores, callingTeam, target)
 }
 
 function trucoWant(ladder: string[]): number {
@@ -179,10 +182,11 @@ function chantLabel(name: string): string {
 
 export function startGame(
   room: Room,
-  opts: { isHost: boolean; canvas: HTMLCanvasElement; peerCountEl: HTMLElement; tableSize?: 2 | 4 },
+  opts: { isHost: boolean; canvas: HTMLCanvasElement; peerCountEl: HTMLElement; tableSize?: 2 | 4; targetScore?: 15 | 30 },
 ): void {
   const { isHost, canvas, peerCountEl } = opts
   let seats: 2 | 4 = isHost && opts.tableSize === 2 ? 2 : 4
+  let target: 15 | 30 = isHost && opts.targetScore === 15 ? 15 : 30
 
   const k = kaplay({
     global: false,
@@ -198,7 +202,7 @@ export function startGame(
   const handAction = room.makeAction<HandMsg>('hand')
   const pubAction = room.makeAction<Pub>('pub')
   const actAction = room.makeAction<ActMsg>('act')
-  const cfgAction = room.makeAction<{ n: 2 | 4 }>('cfg')
+  const cfgAction = room.makeAction<{ n: 2 | 4; target: 15 | 30 }>('cfg')
 
   let mySeat = isHost ? 0 : -1
   let myHand: Card[] = []
@@ -331,6 +335,7 @@ export function startGame(
       winnerTeam,
       seatsFilled: seatsFilled(),
       seatCount: seats,
+      target,
       legal: allLegal(),
       reveal: phase === 'between' || phase === 'done' ? reveal.map((r) => ({
         seat: r.seat,
@@ -342,6 +347,7 @@ export function startGame(
 
   function applyPub(pub: Pub) {
     if (pub.seatCount === 2 || pub.seatCount === 4) seats = pub.seatCount as 2 | 4
+    if (pub.target === 15 || pub.target === 30) target = pub.target
     lastPub = pub
     refreshUi()
   }
@@ -427,7 +433,7 @@ export function startGame(
   function award(team: number, pts: number, why: string) {
     scores[team] = scores[team]! + pts
     log = why
-    if (scores[team]! >= TARGET) {
+    if (scores[team]! >= target) {
       endMatch(team)
       return true
     }
@@ -576,8 +582,8 @@ export function startGame(
       pending = {
         kind: 'envido',
         fromSeat: seat,
-        want: envidoWant(ladder, scores, teamOf(seat, seats)),
-        no: envidoNo(ladder, scores, teamOf(seat, seats)),
+        want: envidoWant(ladder, scores, teamOf(seat, seats), target),
+        no: envidoNo(ladder, scores, teamOf(seat, seats), target),
         ladder,
       }
       lastChant = name
@@ -690,14 +696,14 @@ export function startGame(
     if (seat === undefined) {
       const assigned = assignSeat(peerId)
       if (assigned === null) {
-        void cfgAction.send({ n: seats }, { target: peerId })
+        void cfgAction.send({ n: seats, target }, { target: peerId })
         log = `Spectator joined (${peers.size} peers). Table is full.`
         broadcast()
         return
       }
       seat = assigned
     }
-    void cfgAction.send({ n: seats }, { target: peerId })
+    void cfgAction.send({ n: seats, target }, { target: peerId })
     void helloAction.send({ seat }, { target: peerId })
     if (hostHands && hostHands[seat] && hostHands[seat]!.length > 0) {
       sendHandTo(seat)
@@ -736,6 +742,7 @@ export function startGame(
   cfgAction.onMessage = (data) => {
     if (isHost || !data) return
     if (data.n === 2 || data.n === 4) seats = data.n
+    if (data.target === 15 || data.target === 30) target = data.target
   }
 
   helloAction.onMessage = (data) => {
@@ -802,11 +809,14 @@ export function startGame(
     }
     if (scoreEl) {
       if (!pub) scoreEl.textContent = '—'
-      else if (mySeat < 0) scoreEl.textContent = `${pub.scores[0] ?? 0}–${pub.scores[1] ?? 0}`
       else {
-        const us = teamOf(mySeat, seats)
-        const them = (us + 1) % TEAM_COUNT
-        scoreEl.textContent = `US ${pub.scores[us] ?? 0}  THEM ${pub.scores[them] ?? 0}`
+        const cap = pub.target || target
+        if (mySeat < 0) scoreEl.textContent = `${pub.scores[0] ?? 0}/${cap}–${pub.scores[1] ?? 0}/${cap}`
+        else {
+          const us = teamOf(mySeat, seats)
+          const them = (us + 1) % TEAM_COUNT
+          scoreEl.textContent = `US ${pub.scores[us] ?? 0}/${cap}  THEM ${pub.scores[them] ?? 0}/${cap}`
+        }
       }
     }
     const legal = localLegal()
@@ -943,10 +953,11 @@ export function startGame(
       const them = (us + 1) % TEAM_COUNT
       const usScore = pub.scores[us] ?? 0
       const themScore = pub.scores[them] ?? 0
-      const usHalf = usScore < MALAS ? 'malas' : 'buenas'
-      const themHalf = themScore < MALAS ? 'malas' : 'buenas'
+      const cap = pub.target || target
+      const usHalf = cap <= MALAS ? '' : usScore < MALAS ? ' (malas)' : ' (buenas)'
+      const themHalf = cap <= MALAS ? '' : themScore < MALAS ? ' (malas)' : ' (buenas)'
       k.drawText({
-        text: `US ${usScore} (${usHalf})   THEM ${themScore} (${themHalf})   to ${TARGET}`,
+        text: `US ${usScore}/${cap}${usHalf}   THEM ${themScore}/${cap}${themHalf}`,
         pos: k.vec2(WIDTH / 2, 36),
         size: 16,
         color: hexColor('#e7e9ee'),
