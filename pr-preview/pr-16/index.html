@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Truco Coop</title>
+  <script type="module" crossorigin src="/truco-coop/pr-preview/pr-16/assets/index-CzXyxuCt.js"></script>
+  <link rel="stylesheet" crossorigin href="/truco-coop/pr-preview/pr-16/assets/index-CvHkapD4.css">
+</head>
+<body>
+
+<div id="langSwitch">
+  <button type="button" id="langEs">Español</button>
+  <button type="button" id="langEn">English</button>
+</div>
+
+<div id="overlay">
+  <div id="card">
+    <img class="frameCorner tl" alt="">
+    <img class="frameCorner tr" alt="">
+    <img class="frameCorner bl" alt="">
+    <img class="frameCorner br" alt="">
+    <h1>
+      <img id="titleArt" alt="Truco">
+      <span class="titleFallback">Truco Coop</span>
+    </h1>
+    <p class="sub">Truco argentino. El host elige tamano de mesa y chico, y comparte el enlace.</p>
+
+    <div class="row" id="tableSizeRow">
+      <label>Jugadores</label>
+      <div class="choice">
+        <label class="choiceOpt"><input type="radio" name="tableSize" id="tableSize2" value="2" checked> 2 — 1v1</label>
+        <label class="choiceOpt"><input type="radio" name="tableSize" id="tableSize4" value="4"> 4 — 2v2</label>
+      </div>
+    </div>
+
+    <div class="row" id="targetScoreRow">
+      <label>A tantos</label>
+      <div class="choice">
+        <label class="choiceOpt"><input type="radio" name="targetScore" id="target15" value="15" checked> 15</label>
+        <label class="choiceOpt"><input type="radio" name="targetScore" id="target30" value="30"> 30</label>
+      </div>
+    </div>
+
+    <div class="row">
+      <button class="primary" id="hostBtn">Crear sala</button>
+    </div>
+
+    <div id="linkRow">
+      <label>Comparti este enlace</label>
+      <div id="linkBox">
+        <input type="text" id="linkInput" readonly>
+        <button id="copyBtn">Copiar</button>
+      </div>
+    </div>
+
+    <div id="status">Esperando...</div>
+  </div>
+</div>
+
+<div id="gameWrap">
+  <div id="hud">
+    <span class="you">■ <span id="hudYou">VOS</span></span>
+    <span id="hudCardsLabel">cartas</span>: <span id="hudHand">—</span>
+    &nbsp;|&nbsp; <span id="hudTurnLabel">turno</span>: <span id="hudTurn">—</span>
+    &nbsp;|&nbsp; <span id="hudScoreLabel">tanto</span>: <span id="hudScore">—</span>
+    &nbsp;|&nbsp;
+    <span class="peer">■ <span id="hudPeers">PARES</span></span> <span id="hudConnectedLabel">conectados</span>: <span id="peerCount">0</span>
+  </div>
+  <div id="scoreBoard">
+    <div class="scoreCol">
+      <div class="scoreName" id="scoreUsLabel">NOS</div>
+      <div class="scoreNum"><span id="scoreUs">0</span><span class="scoreCap" id="scoreUsCap">/15</span></div>
+    </div>
+    <div id="turnBanner">—</div>
+    <div class="scoreCol them">
+      <div class="scoreName" id="scoreThemLabel">ELLOS</div>
+      <div class="scoreNum"><span id="scoreThem">0</span><span class="scoreCap" id="scoreThemCap">/15</span></div>
+    </div>
+  </div>
+  <div id="felt">
+    <div id="tableLog"></div>
+    <div id="seatLayer"></div>
+    <div id="cardLayer"></div>
+    <div id="trickMeta"></div>
+  </div>
+  <div id="chantBar">
+    <img class="chantFlourish" alt="" aria-hidden="true">
+    <div id="actionHint"></div>
+    <button id="btnEnvido" disabled>Envido</button>
+    <button id="btnReal" disabled>Real Envido</button>
+    <button id="btnFalta" disabled>Falta</button>
+    <button id="btnTruco" disabled>Truco</button>
+    <button id="btnRetruco" disabled>Retruco</button>
+    <button id="btnVale" disabled>Vale cuatro</button>
+    <button id="btnQuiero" disabled>Quiero</button>
+    <button id="btnNo" disabled>No quiero</button>
+  </div>
+</div>
+
+</body>
+</html>
