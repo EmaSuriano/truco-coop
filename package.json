@@ -26,7 +26,8 @@
   "dependencies": {
     "@trystero-p2p/mqtt": "0.25.3",
     "react": "^19.2.8",
-    "react-dom": "^19.2.8"
+    "react-dom": "^19.2.8",
+    "zustand": "^5.0.15"
   },
   "devDependencies": {
     "@types/react": "^19.2.18",
