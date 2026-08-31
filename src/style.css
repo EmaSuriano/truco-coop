@@ -282,6 +282,7 @@
   }
   .seat-tag.you { color: #6ee7a8; }
   .seat-tag.actor { font-size: 16px; color: #f2d48a; }
+  .seat-tag.offline { color: #8a7a6a; opacity: 0.75; }
   .seat-badge {
     position: absolute;
     transform: translate(-50%, -50%);

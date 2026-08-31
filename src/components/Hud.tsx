@@ -26,7 +26,8 @@ export function Hud({ view }: { view: ViewState }) {
         : actor !== null
           ? t('pAnswers', { chant, n: actor })
           : chant
-  } else if (actor === view.mySeat) turnText = t('yourTurn')
+  } else if (actor !== null && pub.disconnected?.[actor]) turnText = t('waitingReconnect', { n: actor })
+  else if (actor === view.mySeat) turnText = t('yourTurn')
   else if (actor !== null) turnText = t('pPlays', { n: actor })
 
   const cap = pub ? pub.target || 15 : 15

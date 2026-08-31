@@ -39,6 +39,7 @@ export type Pub = {
   handPoints: number
   sfx?: string
   sfxN?: number
+  disconnected: boolean[]
 }
 
 export type ViewState = {
@@ -47,6 +48,7 @@ export type ViewState = {
   lastPub: Pub | null
   peerCount: number
   isHost: boolean
+  hostGone: boolean
 }
 
 export type GameState = {
@@ -78,6 +80,8 @@ export type GameState = {
   hands: Card[][]
   sfx: string
   sfxN: number
+  disconnected: boolean[]
+  hostGone: boolean
 }
 
 export type GameAction =
@@ -94,6 +98,7 @@ export type GameAction =
   | { type: 'START_HAND' }
   | { type: 'PEER_JOIN'; seat: number | null }
   | { type: 'PEER_LEAVE'; seat: number | null }
+  | { type: 'HOST_GONE' }
   | { type: 'SET_CFG'; seats?: 2 | 4; target?: 15 | 30 }
   | { type: 'SET_SEAT'; seat: number }
   | { type: 'APPLY_PUB'; pub: Pub }
@@ -232,6 +237,12 @@ export function actorSeat(pub: Pub | null): number | null {
       const legal = pub.legal[s] || []
       if (legal.includes('quiero') || legal.includes('no')) return s
     }
+    if (pub.disconnected) {
+      const fromTeam = teamOf(pub.pending.fromSeat, n)
+      for (let s = 0; s < n; s++) {
+        if (pub.disconnected[s] && teamOf(s, n) !== fromTeam) return s
+      }
+    }
     return null
   }
   if (pub.phase === 'play') return pub.turn
@@ -244,9 +255,15 @@ export function seatsFilled(state: GameState): number {
   return n
 }
 
+export function anyDisconnected(state: GameState): boolean {
+  for (let s = 0; s < state.seats; s++) if (state.disconnected[s]) return true
+  return false
+}
+
 function legalFor(state: GameState, seat: number): ActName[] {
   const out: ActName[] = []
   if (!state.isHost) return out
+  if (state.disconnected[seat]) return out
   if (state.winnerTeam !== null || state.phase === 'wait' || state.phase === 'between' || state.phase === 'done') {
     return out
   }
@@ -324,6 +341,7 @@ export function buildPub(state: GameState): Pub {
     handPoints: state.handPoints,
     sfx: state.sfx,
     sfxN: state.sfxN,
+    disconnected: state.disconnected.slice(0, state.seats),
   }
 }
 
@@ -365,6 +383,8 @@ export function createGameState(opts: {
     hands: emptyHands(),
     sfx: '',
     sfxN: 0,
+    disconnected: Array.from({ length: MAX_SEATS }, () => false),
+    hostGone: false,
   }
 }
 
@@ -671,7 +691,7 @@ function applyNo(state: GameState, seat: number): GameState {
 
 function deal(state: GameState, seed?: number): GameState {
   if (!state.isHost) return state
-  if (seatsFilled(state) < state.seats || state.winnerTeam !== null) return state
+  if (seatsFilled(state) < state.seats || state.winnerTeam !== null || anyDisconnected(state)) return state
   const reset = resetHandVars(state)
   const hands = emptyHands()
   const deck = shuffleWithSeed(makeDeck(), seed ?? 0)
@@ -697,7 +717,7 @@ function deal(state: GameState, seed?: number): GameState {
 }
 
 function startHand(state: GameState): GameState {
-  if (state.winnerTeam !== null) return state
+  if (state.winnerTeam !== null || anyDisconnected(state)) return state
   if (state.phase === 'wait') {
     const dealer = 0
     return { ...state, dealer, mano: nextSeat(dealer, state.seats) }
@@ -711,37 +731,42 @@ function startHand(state: GameState): GameState {
 
 function applyPeerJoin(state: GameState, seat: number | null): GameState {
   const occupied = state.occupied.slice()
+  const disconnected = state.disconnected.slice()
   let log = state.log
   if (seat !== null && seat >= 0 && seat < MAX_SEATS) {
+    const wasOccupied = occupied[seat]
     occupied[seat] = true
-    const filled = occupied.slice(0, state.seats).filter(Boolean).length
-    log = `Waiting ${filled}/${state.seats}`
+    disconnected[seat] = false
+    if (wasOccupied && state.phase !== 'wait') {
+      log = `P${seat} rejoined.`
+    } else if (state.phase === 'wait') {
+      const filled = occupied.slice(0, state.seats).filter(Boolean).length
+      log = `Waiting ${filled}/${state.seats}`
+    } else {
+      log = `P${seat} rejoined.`
+    }
   } else {
     log = `Spectator joined (${state.peerCount + 1} peers). Table is full.`
   }
   return {
     ...state,
     occupied,
+    disconnected,
     peerCount: state.peerCount + 1,
     log,
   }
 }
 
 function applyPeerLeave(state: GameState, seat: number | null): GameState {
-  const occupied = state.occupied.slice()
-  let phase = state.phase
+  const disconnected = state.disconnected.slice()
   let log = state.log
   if (seat !== null && seat >= 0 && seat < MAX_SEATS) {
-    occupied[seat] = false
-    log = `P${seat} left. Waiting to refill the table.`
-    if (state.winnerTeam === null && phase !== 'wait' && phase !== 'done') {
-      phase = 'wait'
-    }
+    disconnected[seat] = true
+    log = `P${seat} disconnected. Waiting for them to rejoin.`
   }
   return {
     ...state,
-    occupied,
-    phase,
+    disconnected,
     log,
     peerCount: Math.max(0, state.peerCount - 1),
   }
@@ -782,6 +807,9 @@ function applyPub(state: GameState, pub: Pub): GameState {
     handPoints: pub.handPoints,
     sfx: pub.sfx || state.sfx,
     sfxN: typeof pub.sfxN === 'number' ? pub.sfxN : state.sfxN,
+    disconnected: Array.isArray(pub.disconnected)
+      ? Array.from({ length: MAX_SEATS }, (_, i) => !!pub.disconnected[i])
+      : state.disconnected,
   }
 }
 
@@ -815,6 +843,8 @@ export function reducer(state: GameState, action: GameAction): GameState {
       return applyPeerJoin(state, action.seat)
     case 'PEER_LEAVE':
       return applyPeerLeave(state, action.seat)
+    case 'HOST_GONE':
+      return { ...state, hostGone: true }
     case 'SET_CFG':
       return applyCfg(state, action.seats, action.target)
     case 'SET_SEAT':
