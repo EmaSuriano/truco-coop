@@ -1,4 +1,3 @@
-import kaplay from 'kaplay'
 import type { Room } from '@trystero-p2p/mqtt'
 import {
   WIDTH,
@@ -6,8 +5,6 @@ import {
   MAX_SEATS,
   TEAM_COUNT,
   MALAS,
-  HOST_COLOR,
-  JOIN_COLOR,
   teamOf,
   nextSeat,
 } from './config'
@@ -186,35 +183,18 @@ function chantLabel(name: string): string {
 
 export function startGame(
   room: Room,
-  opts: { isHost: boolean; canvas: HTMLCanvasElement; peerCountEl: HTMLElement; tableSize?: 2 | 4; targetScore?: 15 | 30 },
+  opts: { isHost: boolean; felt: HTMLElement; peerCountEl: HTMLElement; tableSize?: 2 | 4; targetScore?: 15 | 30 },
 ): void {
-  const { isHost, canvas, peerCountEl } = opts
+  const { isHost, felt, peerCountEl } = opts
   let seats: 2 | 4 = opts.tableSize === 4 ? 4 : 2
   let target: 15 | 30 = opts.targetScore === 30 ? 30 : 15
-
-  const k = kaplay({
-    global: false,
-    width: WIDTH,
-    height: HEIGHT,
-    letterbox: true,
-    background: [42, 10, 14],
-    crisp: true,
-    canvas,
-  })
 
   function publicUrl(path: string): string {
     const base = import.meta.env.BASE_URL || '/'
     return `${base.endsWith('/') ? base : `${base}/`}${path.replace(/^\//, '')}`
   }
 
-  let artReady = false
-  k.loadSprite('felt', publicUrl('ui/table-felt.png'))
-  k.loadSprite('card-back', publicUrl('cards/back.png'))
-  for (const suit of ['espada', 'basto', 'oro', 'copa'] as const) {
-    for (const rank of [1, 2, 3, 4, 5, 6, 7, 10, 11, 12] as const) {
-      k.loadSprite(`card-${suit}-${rank}`, publicUrl(`cards/${suit}-${rank}.png`))
-    }
-  }
+  const sounds = new Map<string, HTMLAudioElement>()
   const soundOk = new Set<string>()
   let bgmStarted = false
   let sfxName = ''
@@ -223,8 +203,12 @@ export function startGame(
 
   function playSfx(name: string) {
     if (!name || name === 'bgm' || !soundOk.has(name)) return
+    const src = sounds.get(name)
+    if (!src) return
     try {
-      k.play(name, { volume: 0.7 })
+      const a = src.cloneNode(true) as HTMLAudioElement
+      a.volume = 0.7
+      void a.play().catch(() => {})
     } catch {
       /* mute-safe */
     }
@@ -233,8 +217,14 @@ export function startGame(
   function startBgm() {
     if (bgmStarted || !soundOk.has('bgm')) return
     bgmStarted = true
+    const a = sounds.get('bgm')
+    if (!a) {
+      bgmStarted = false
+      return
+    }
     try {
-      k.play('bgm', { loop: true, volume: 0.18 })
+      const p = a.play()
+      if (p && typeof p.catch === 'function') p.catch(() => { bgmStarted = false })
     } catch {
       bgmStarted = false
     }
@@ -246,8 +236,7 @@ export function startGame(
     playSfx(name)
   }
 
-  k.onLoad(() => {
-    artReady = true
+  function loadAudio() {
     const files: [string, string][] = [
       ['bgm', 'bgm-loop.ogg'],
       ['deal', 'sfx-deal.ogg'],
@@ -260,18 +249,26 @@ export function startGame(
     ]
     for (const [name, file] of files) {
       const url = publicUrl('audio/' + file)
+      const audio = new Audio(url)
+      audio.preload = 'auto'
+      audio.volume = name === 'bgm' ? 0.18 : 0.7
+      if (name === 'bgm') audio.loop = true
+      const markOk = () => {
+        if (soundOk.has(name)) return
+        soundOk.add(name)
+        if (name === 'bgm') startBgm()
+      }
+      audio.addEventListener('canplaythrough', markOk)
+      audio.addEventListener('error', () => { /* 404 must not throw */ })
+      sounds.set(name, audio)
       void fetch(url)
         .then((res) => {
           if (!res.ok) return
-          k.loadSound(name, url)
-          window.setTimeout(() => {
-            soundOk.add(name)
-            if (name === 'bgm') startBgm()
-          }, 350)
+          markOk()
         })
         .catch(() => {})
     }
-  })
+  }
 
   const helloAction = room.makeAction<HelloMsg>('hello')
   const handAction = room.makeAction<HandMsg>('hand')
@@ -306,23 +303,13 @@ export function startGame(
   let trucoLastTeam = -1
   let dealGen = 0
   let lastPub: Pub | null = null
+  let tableSync: (pub: Pub | null) => void = () => {}
 
   function seatsFilled(): number {
     if (!isHost) return lastPub ? lastPub.seatsFilled : 1
     let n = 1
     for (let s = 1; s < seats; s++) if (peerOfSeat[s]) n += 1
     return n
-  }
-
-  function hexColor(hex: string) {
-    if (k.Color && typeof k.Color.fromHex === 'function') {
-      return k.Color.fromHex(hex)
-    }
-    const n = String(hex).replace('#', '')
-    const r = parseInt(n.slice(0, 2), 16) || 0
-    const g = parseInt(n.slice(2, 4), 16) || 0
-    const b = parseInt(n.slice(4, 6), 16) || 0
-    return k.rgb(r, g, b)
   }
 
   function refreshPeerCount() {
@@ -863,17 +850,6 @@ export function startGame(
     applyAct(seat, data)
   }
 
-  if (typeof room.getPeers === 'function') {
-    const existing = room.getPeers() || {}
-    const ids = Array.isArray(existing) ? existing : Object.keys(existing)
-    for (const peerId of ids) greetPeer(peerId)
-  }
-
-  if (isHost) {
-    lastPub = buildPub()
-    refreshUi()
-  }
-
   function localLegal(): string[] {
     if (mySeat < 0) return []
     if (lastPub && lastPub.legal[mySeat]) return lastPub.legal[mySeat]!
@@ -952,14 +928,12 @@ export function startGame(
     }
   }
 
-  let tableSync: (pub: Pub | null) => void = () => {}
-
   function refreshUi() {
     refreshHud()
     tableSync(lastPub)
   }
 
-  onLocale(refreshHud)
+  onLocale(refreshUi)
 
   for (const { name, id } of BTN_IDS) {
     const el = document.getElementById(id)
@@ -985,7 +959,7 @@ export function startGame(
     return { x: WIDTH - 86, y: HEIGHT / 2 }
   }
 
-  const table = installTable(k, {
+  const table = installTable(felt, {
     visOf,
     seatAnchor,
     getSeats: () => seats,
@@ -994,73 +968,21 @@ export function startGame(
     localLegal,
     submitPlay: (i) => submitAct({ t: 'play', i }),
     cardLabel,
-    hexColor,
+    publicUrl,
+    t,
+    chantLabel,
   })
   tableSync = table.sync
+  loadAudio()
 
-  k.onDraw(() => {
-    const pub = lastPub
-    if (pub) {
-      let banner = pub.log
-      if (pub.winnerTeam !== null) banner = t('teamWins', { team: pub.winnerTeam })
-      else if (pub.pending) {
-        banner = `${chantLabel(pub.pending.ladder[pub.pending.ladder.length - 1] || '')}  want ${pub.pending.want} / no ${pub.pending.no}`
-      }
-      k.drawText({
-        text: banner,
-        pos: k.vec2(WIDTH / 2, 88),
-        size: 14,
-        color: hexColor('#f2b84b'),
-        anchor: 'center',
-      })
-    }
+  if (typeof room.getPeers === 'function') {
+    const existing = room.getPeers() || {}
+    const ids = Array.isArray(existing) ? existing : Object.keys(existing)
+    for (const peerId of ids) greetPeer(peerId)
+  }
 
-    for (let seat = 0; seat < seats; seat++) {
-      const vis = visOf(seat)
-      const a = seatAnchor(vis)
-      const you = seat === mySeat
-      const actor = actorSeat(pub)
-      const legalHere = pub ? pub.legal[seat] || [] : []
-      const isActor = pub && pub.pending
-        ? legalHere.includes('quiero') || legalHere.includes('no')
-        : actor === seat
-      const tag = you ? `${t('you')} P${seat}` : `P${seat}`
-      const tagY = vis === 0 ? a.y + 8 : a.y - 46
-      if (isActor) {
-        k.drawRect({
-          pos: k.vec2(a.x - 52, tagY - 28),
-          width: 104,
-          height: 22,
-          radius: 6,
-          color: hexColor('#8a1c28'),
-          outline: { width: 2, color: hexColor('#e0b84a') },
-        })
-        k.drawText({
-          text: pub && pub.pending ? t('answers') : t('plays'),
-          pos: k.vec2(a.x, tagY - 17),
-          size: 12,
-          color: hexColor('#f2d48a'),
-          anchor: 'center',
-        })
-      }
-      k.drawText({
-        text: tag + (pub && seat === pub.dealer ? ' · pie' : '') + (pub && seat === pub.mano ? ' · mano' : ''),
-        pos: k.vec2(a.x, tagY),
-        size: isActor ? 16 : 12,
-        color: hexColor(isActor ? '#f2d48a' : you ? HOST_COLOR : '#d7dbe6'),
-        anchor: 'center',
-      })
-    }
-
-    if (pub) {
-      const tw = pub.trickWins.map((x) => (x === 'parda' ? 'P' : `T${x}`)).join(' ')
-      k.drawText({
-        text: tw ? `tricks ${tw}   hand ${pub.handPoints}pt` : `hand ${pub.handPoints}pt`,
-        pos: k.vec2(WIDTH / 2, HEIGHT - 18),
-        size: 12,
-        color: hexColor('#c5cbd6'),
-        anchor: 'center',
-      })
-    }
-  })
+  if (isHost) {
+    lastPub = buildPub()
+    refreshUi()
+  }
 }
