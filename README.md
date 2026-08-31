@@ -6,6 +6,8 @@ Rules: https://www.envidoytruco.com/en/rules/truco-argentino
 
 Demo: https://emasuriano.github.io/truco-coop/
 
+Looks like fileteado porteño: TRUCO lockup, burgundy felt, Spanish-deck faces and backs.
+
 
 ## How to play
 

@@ -1,6 +1,26 @@
 import { connectRoom, genCode, shareLink } from './net'
 import { startGame } from './game'
 
+function publicUrl(path: string): string {
+  const base = import.meta.env.BASE_URL || '/'
+  return `${base.endsWith('/') ? base : `${base}/`}${path.replace(/^\//, '')}`
+}
+
+function wireUiArt() {
+  const title = document.getElementById('titleArt') as HTMLImageElement | null
+  if (title) {
+    title.addEventListener('load', () => title.classList.add('ok'))
+    title.addEventListener('error', () => title.remove())
+    title.src = publicUrl('ui/title-truco.png')
+  }
+  const corner = publicUrl('ui/frame-corner.png')
+  for (const el of document.querySelectorAll<HTMLImageElement>('.frameCorner')) {
+    el.src = corner
+  }
+  const flourish = document.querySelector<HTMLImageElement>('.chantFlourish')
+  if (flourish) flourish.src = publicUrl('ui/button-ornament.png')
+}
+
 function required<T extends HTMLElement>(id: string): T {
   const el = document.getElementById(id)
   if (!el) throw new Error(`Required element #${id} is missing`)
@@ -85,6 +105,7 @@ function boot() {
 }
 
 try {
+  wireUiArt()
   if (location.protocol === 'file:') {
     hostBtn.disabled = true
     showError(FILE_OPEN_HINT)
