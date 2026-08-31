@@ -9,7 +9,7 @@ export type VizCard = {
   id: string
   x: number
   y: number
-  kind: 'local' | 'back' | 'trick' | 'reveal'
+  kind: 'local' | 'back' | 'trick' | 'reveal' | 'won'
   card: CardData | null
   face: boolean
   illegal: boolean
