@@ -1,5 +1,6 @@
 import { connectRoom, genCode, shareLink } from './net'
 import { startGame } from './game'
+import { initI18n, onLocale, t } from './i18n'
 
 function publicUrl(path: string): string {
   const base = import.meta.env.BASE_URL || '/'
@@ -75,9 +76,9 @@ function go(code: string) {
 copyBtn.addEventListener('click', () => {
   linkInput.select()
   void navigator.clipboard.writeText(linkInput.value)
-  copyBtn.textContent = 'Copied!'
+  copyBtn.textContent = t('copied')
   setTimeout(() => {
-    copyBtn.textContent = 'Copy'
+    copyBtn.textContent = t('copy')
   }, 1200)
 })
 
@@ -89,16 +90,26 @@ function onHostClick() {
     linkRow.classList.add('show')
     history.replaceState(null, '', link)
     statusEl.classList.remove('err')
-    statusEl.textContent = readTableSize() === 2 ? 'Room created. Waiting for 1 more…' : 'Room created. Waiting for 3 more…'
+    statusEl.textContent = readTableSize() === 2 ? t('wait1') : t('wait3')
     hostBtn.disabled = true
-    hostBtn.textContent = 'Room open'
+    hostBtn.textContent = t('roomOpen')
     go(roomCode)
   } catch (err) {
     showError(err instanceof Error ? err.message : String(err))
   }
 }
 
-const FILE_OPEN_HINT = "Open this with npm run dev (http://localhost:3000), not as a file."
+function refreshLobbyStatus() {
+  if (hostBtn.disabled && isHost && roomCode) {
+    hostBtn.textContent = t('roomOpen')
+    statusEl.textContent = readTableSize() === 2 ? t('wait1') : t('wait3')
+  } else if (roomParam) {
+    statusEl.textContent = t('joining', { room: roomParam })
+  } else if (!statusEl.classList.contains('err')) {
+    statusEl.textContent = t('waiting')
+  }
+}
+
 
 function boot() {
   if (!roomParam) {
@@ -108,15 +119,17 @@ function boot() {
   hostBtn.style.display = 'none'
   tableSizeRow.style.display = 'none'
   targetScoreRow.style.display = 'none'
-  statusEl.textContent = 'Joining room "' + roomParam + '"...'
+  statusEl.textContent = t('joining', { room: roomParam })
   go(roomParam)
 }
 
 try {
+  initI18n()
+  onLocale(refreshLobbyStatus)
   wireUiArt()
   if (location.protocol === 'file:') {
     hostBtn.disabled = true
-    showError(FILE_OPEN_HINT)
+    showError(t('fileHint'))
   } else {
     boot()
   }
