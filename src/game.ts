@@ -29,7 +29,7 @@ type ClaimMsg = { token: string }
 type HandMsg = { cards: Card[] }
 
 const CLAIM_PREFIX = 'truco-coop-claim:'
-const CLAIM_WAIT_MS = 400
+const CLAIM_WAIT_MS = 1500
 
 function randomToken(): string {
   const bytes = new Uint8Array(16)
@@ -41,13 +41,37 @@ function claimKey(roomCode: string): string {
   return CLAIM_PREFIX + roomCode
 }
 
+function readClaimRaw(roomCode: string): string | null {
+  const key = claimKey(roomCode)
+  try {
+    const local = localStorage.getItem(key)
+    if (local) return local
+  } catch {
+    /* ignore */
+  }
+  try {
+    const session = sessionStorage.getItem(key)
+    if (session) {
+      try {
+        localStorage.setItem(key, session)
+      } catch {
+        /* ignore */
+      }
+      return session
+    }
+  } catch {
+    /* ignore */
+  }
+  return null
+}
+
 function loadClaim(roomCode: string): { seat: number; token: string } | null {
   if (!roomCode) return null
   try {
-    const raw = sessionStorage.getItem(claimKey(roomCode))
+    const raw = readClaimRaw(roomCode)
     if (!raw) return null
     const parsed = JSON.parse(raw) as { seat?: unknown; token?: unknown }
-    if (typeof parsed.seat === 'number' && typeof parsed.token === 'string') {
+    if (typeof parsed.seat === 'number' && typeof parsed.token === 'string' && parsed.token) {
       return { seat: parsed.seat, token: parsed.token }
     }
   } catch {
@@ -57,9 +81,15 @@ function loadClaim(roomCode: string): { seat: number; token: string } | null {
 }
 
 function saveClaim(roomCode: string, seat: number, token: string) {
-  if (!roomCode) return
+  if (!roomCode || !token) return
+  const raw = JSON.stringify({ seat, token })
   try {
-    sessionStorage.setItem(claimKey(roomCode), JSON.stringify({ seat, token }))
+    localStorage.setItem(claimKey(roomCode), raw)
+  } catch {
+    /* ignore */
+  }
+  try {
+    sessionStorage.setItem(claimKey(roomCode), raw)
   } catch {
     /* ignore */
   }
@@ -367,11 +397,17 @@ export function startGame(
     afterBind(seat)
   }
 
+  function sendClaim() {
+    if (isHost) return
+    if (store.getState().mySeat >= 0) return
+    const claim = loadClaim(roomCode)
+    if (claim && claim.token) void claimAction.send({ token: claim.token })
+  }
+
   function greetPeer(peerId: string) {
-    const isNew = !peers.has(peerId)
     peers.add(peerId)
     if (!isHost) {
-      if (isNew) dispatchGame({ type: 'PEER_JOIN', seat: null })
+      sendClaim()
       return
     }
     if (seatOfPeer.has(peerId)) return
@@ -431,6 +467,7 @@ export function startGame(
   cfgAction.onMessage = (data, context) => {
     if (isHost || !data) return
     if (context?.peerId) hostPeerId = context.peerId
+    sendClaim()
     const seats = data.n === 2 || data.n === 4 ? data.n : undefined
     const target = data.target === 15 || data.target === 30 ? data.target : undefined
     if (seats !== undefined || target !== undefined) {
@@ -445,6 +482,8 @@ export function startGame(
       dispatchGame({ type: 'SET_SEAT', seat: data.seat })
       const token = typeof data.token === 'string' ? data.token : ''
       saveClaim(roomCode, data.seat, token)
+    } else {
+      sendClaim()
     }
   }
 
@@ -475,10 +514,7 @@ export function startGame(
     for (const peerId of ids) greetPeer(peerId)
   }
 
-  if (!isHost) {
-    const claim = loadClaim(roomCode)
-    if (claim && claim.token) void claimAction.send({ token: claim.token })
-  }
+  if (!isHost) sendClaim()
 
   return {
     subscribe(fn: () => void) {
