@@ -3,14 +3,21 @@
 <head>
 <meta charset="UTF-8">
 <title>Truco Coop</title>
-  <script type="module" crossorigin src="/truco-coop/assets/index-BeQqR10w.js"></script>
-  <link rel="stylesheet" crossorigin href="/truco-coop/assets/index-sbPwOnOq.css">
+  <script type="module" crossorigin src="/truco-coop/assets/index-DC0YNXaA.js"></script>
+  <link rel="stylesheet" crossorigin href="/truco-coop/assets/index-B22o7nvJ.css">
 </head>
 <body>
 
 <div id="overlay">
   <div id="card">
-    <h1>Truco Coop</h1>
+    <img class="frameCorner tl" alt="">
+    <img class="frameCorner tr" alt="">
+    <img class="frameCorner bl" alt="">
+    <img class="frameCorner br" alt="">
+    <h1>
+      <img id="titleArt" alt="Truco">
+      <span class="titleFallback">Truco Coop</span>
+    </h1>
     <p class="sub">Argentine Truco. Host picks table size, then share the link.</p>
 
     <div class="row" id="tableSizeRow">
@@ -48,6 +55,7 @@
   </div>
   <canvas id="gameCanvas"></canvas>
   <div id="chantBar">
+    <img class="chantFlourish" alt="" aria-hidden="true">
     <button id="btnEnvido" disabled>Envido</button>
     <button id="btnReal" disabled>Real Envido</button>
     <button id="btnFalta" disabled>Falta</button>
