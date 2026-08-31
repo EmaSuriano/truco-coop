@@ -18,6 +18,7 @@ type Engine = {
   won: VizCard[]
   reveal: VizCard[]
   prevTrickLen: number
+  prevWinsLen: number
   lastDealN: number
   lastChantN: number
   revealing: boolean
@@ -54,7 +55,7 @@ function oppRest(seat: number, i: number, n: number, mySeat: number, seats: numb
 function trickPos(seat: number, mySeat: number, seats: number) {
   const vis = visOf(seat, mySeat, seats)
   const cx = WIDTH / 2 + (vis === 1 ? -70 : vis === 3 ? 70 : 0)
-  const cy = HEIGHT / 2 + (vis === 0 ? 52 : vis === 2 ? -52 : 0) - 10
+  const cy = HEIGHT / 2 + (vis === 2 ? -52 : vis === 0 ? 52 : 0) - 10
   return { x: cx, y: cy }
 }
 
@@ -75,20 +76,20 @@ function wonPos(
   seats: number,
   turn: number,
 ) {
-  const fanX = (cardIndex - 1) * 11
-  const fanY = cardIndex * 3
-  const yaw = (cardIndex - 1) * 7
+  const fanX = cardIndex * 8
+  const fanY = cardIndex * 4
+  const yaw = (cardIndex - 1) * 6
   if (mark === 'parda') {
     return {
-      x: WIDTH / 2 + fanX + pileIndex * 16,
-      y: HEIGHT / 2 + 6 + fanY,
+      x: WIDTH / 2 + fanX + pileIndex * 18,
+      y: HEIGHT / 2 + 8 + fanY,
       yaw,
     }
   }
   const seat = seatForWon(mark, turn, seats) ?? turn
   const vis = visOf(seat, mySeat, seats)
   const a = seatAnchor(vis)
-  const pile = pileIndex * 20
+  const pile = pileIndex * 22
   if (vis === 0) return { x: a.x + 188 + fanX + pile, y: a.y - 86 + fanY, yaw }
   if (vis === 2) return { x: a.x + 188 + fanX + pile, y: a.y + 78 + fanY, yaw }
   if (vis === 1) return { x: a.x + 78 + fanX, y: a.y + 92 + fanY + pile, yaw }
@@ -114,6 +115,7 @@ export function Felt({ view, onPlay }: { view: ViewState; onPlay: (i: number) =>
     won: [],
     reveal: [],
     prevTrickLen: 0,
+    prevWinsLen: 0,
     lastDealN: -1,
     lastChantN: -1,
     revealing: false,
@@ -128,7 +130,7 @@ export function Felt({ view, onPlay }: { view: ViewState; onPlay: (i: number) =>
 
   function flush() {
     const e = engine.current
-    setCards([...e.won, ...e.hand.filter(Boolean), ...e.opp.flat(), ...e.trick, ...e.reveal])
+    setCards([...e.won, ...e.hand, ...e.opp.flat(), ...e.trick, ...e.reveal])
   }
 
   function makeCard(
@@ -139,9 +141,11 @@ export function Felt({ view, onPlay }: { view: ViewState; onPlay: (i: number) =>
     face: boolean,
     extra?: Partial<Pick<VizCard, 'fromCenter' | 'fromRotate' | 'duration' | 'yaw'>>,
   ): VizCard {
-    engine.current.nid += 1
+    const e = engine.current
+    e.nid += 1
+    const id = card ? `d${e.dealGen}:${cardId(card)}` : `d${e.dealGen}:n${e.nid}`
     return {
-      id: 'c' + engine.current.nid,
+      id,
       x,
       y,
       kind,
@@ -163,14 +167,12 @@ export function Felt({ view, onPlay }: { view: ViewState; onPlay: (i: number) =>
     if (!view.lastPub) return
     const pub = view.lastPub
     const e = engine.current
-    const seats = pub.seatCount === 4 ? 4 : pub.seatCount === 2 ? 2 : 2
+    const seats = pub.seatCount === 4 ? 4 : 2
     const me = view.mySeat
 
     function dimLocal() {
       const can = localLegal(viewRef.current).includes('play')
-      for (const o of e.hand) {
-        if (o) o.illegal = !can
-      }
+      for (const o of e.hand) o.illegal = !can
       flush()
     }
 
@@ -189,27 +191,25 @@ export function Felt({ view, onPlay }: { view: ViewState; onPlay: (i: number) =>
       return viewRef.current.myHand
     }
 
-    function trickHas(card: CardData): boolean {
+    function tableHas(card: CardData): boolean {
       if (pub.trick.some((p) => sameCard(p.card, card))) return true
       if (e.trick.some((o) => o.card && sameCard(o.card, card))) return true
       if (e.won.some((o) => o.card && sameCard(o.card, card))) return true
       return false
     }
 
-    function visualizedIds(): Set<string> {
-      const ids = new Set<string>()
-      for (const o of e.hand) {
-        if (o?.card) ids.add(cardId(o.card))
-      }
-      return ids
+    function handHasId(id: string): boolean {
+      return e.hand.some((o) => o.card && cardId(o.card) === id)
     }
 
-    function placeInTrick(obj: VizCard, seat: number, card: CardData) {
+    function placeInTrick(obj: VizCard, seat: number, card: CardData | null) {
       const dest = trickPos(seat, me, seats)
       obj.kind = 'trick'
       obj.illegal = false
-      obj.face = true
-      obj.card = card
+      if (card) {
+        obj.face = true
+        obj.card = card
+      }
       obj.fromCenter = false
       obj.duration = 0.28
       obj.yaw = seat % 2 === 0 ? 6 : -5
@@ -229,6 +229,7 @@ export function Felt({ view, onPlay }: { view: ViewState; onPlay: (i: number) =>
       clearGroup(e.reveal)
       e.revealing = false
       e.prevTrickLen = 0
+      e.prevWinsLen = 0
       flush()
       let n = 0
       for (let r = 0; r < 3; r++) {
@@ -242,8 +243,7 @@ export function Felt({ view, onPlay }: { view: ViewState; onPlay: (i: number) =>
             if (gen !== e.dealGen) return
             if (seat === me && me >= 0) {
               const live = liveHand()
-              const have = visualizedIds()
-              const nextCard = live.find((c) => !have.has(cardId(c)) && !trickHas(c))
+              const nextCard = live.find((c) => !handHasId(cardId(c)) && !tableHas(c))
               if (!nextCard) return
               const obj = makeCard(WIDTH / 2, HEIGHT / 2, 'local', nextCard, true, {
                 fromCenter: true,
@@ -276,13 +276,14 @@ export function Felt({ view, onPlay }: { view: ViewState; onPlay: (i: number) =>
 
     function flyToTrick(play: { seat: number; card: CardData }) {
       if (e.trick.some((o) => o.card && sameCard(o.card, play.card))) {
-        dimLocal()
         return
       }
-      const dest = trickPos(play.seat, me, seats)
+      if (e.won.some((o) => o.card && sameCard(o.card, play.card))) {
+        return
+      }
       let obj: VizCard | null = null
       if (play.seat === me) {
-        const idx = e.hand.findIndex((o) => o && o.card && sameCard(o.card, play.card))
+        const idx = e.hand.findIndex((o) => o.card && sameCard(o.card, play.card))
         if (idx >= 0) {
           obj = e.hand[idx] || null
           if (obj) e.hand.splice(idx, 1)
@@ -293,6 +294,7 @@ export function Felt({ view, onPlay }: { view: ViewState; onPlay: (i: number) =>
         obj = pile && pile.length ? pile.pop()! : null
       }
       if (!obj) {
+        const dest = trickPos(play.seat, me, seats)
         obj = makeCard(dest.x, dest.y, 'trick', play.card, true, {
           duration: 0.28,
           yaw: play.seat % 2 === 0 ? 6 : -5,
@@ -301,7 +303,20 @@ export function Felt({ view, onPlay }: { view: ViewState; onPlay: (i: number) =>
       } else {
         placeInTrick(obj, play.seat, play.card)
       }
-      dimLocal()
+    }
+
+    function ingestOppPlays() {
+      const left = pub.cardsLeft || []
+      for (let s = 0; s < seats; s++) {
+        if (s === me) continue
+        const pile = e.opp[s]
+        if (!pile) continue
+        const want = typeof left[s] === 'number' ? left[s]! : pile.length
+        while (pile.length > want) {
+          const obj = pile.pop()!
+          placeInTrick(obj, s, obj.card)
+        }
+      }
     }
 
     function sweepTrick() {
@@ -314,7 +329,7 @@ export function Felt({ view, onPlay }: { view: ViewState; onPlay: (i: number) =>
         const dest = wonPos(mark, pileIndex, i, me, seats, pub.turn)
         o.kind = 'won'
         o.illegal = false
-        o.face = true
+        if (o.card) o.face = true
         o.fromCenter = false
         o.duration = 0.4
         o.yaw = dest.yaw
@@ -322,34 +337,23 @@ export function Felt({ view, onPlay }: { view: ViewState; onPlay: (i: number) =>
         o.y = dest.y
         e.won.push(o)
       })
-      flush()
     }
 
     function reconcileHand() {
       const live = liveHand()
       const liveIds = new Set(live.map(cardId))
       const staying: VizCard[] = []
-      const leaving: VizCard[] = []
       for (const o of e.hand) {
-        if (!o) continue
-        if (o.card && liveIds.has(cardId(o.card)) && !trickHas(o.card)) staying.push(o)
-        else leaving.push(o)
-      }
-      for (const o of leaving) {
-        if (!o.card) continue
-        if (e.trick.some((t) => t.card && sameCard(t.card, o.card!))) continue
-        if (e.won.some((t) => t.card && sameCard(t.card, o.card!))) continue
-        placeInTrick(o, me >= 0 ? me : 0, o.card)
+        if (o.card && liveIds.has(cardId(o.card)) && !tableHas(o.card)) staying.push(o)
+        else if (o.card && !tableHas(o.card)) placeInTrick(o, me >= 0 ? me : 0, o.card)
       }
       e.hand = staying
       if (!e.dealing) {
-        const have = visualizedIds()
         for (const c of live) {
           const id = cardId(c)
-          if (have.has(id) || trickHas(c)) continue
+          if (handHasId(id) || tableHas(c)) continue
           const dest = localRest(e.hand.length, live.length)
           e.hand.push(makeCard(dest.x, dest.y, 'local', c, true, { duration: 0.32 }))
-          have.add(id)
         }
       }
       restackHand()
@@ -368,7 +372,6 @@ export function Felt({ view, onPlay }: { view: ViewState; onPlay: (i: number) =>
           e.reveal.push(obj)
         })
       }
-      flush()
     }
 
     if (pub.sfx === 'deal' && typeof pub.sfxN === 'number' && pub.sfxN !== e.lastDealN) {
@@ -388,14 +391,26 @@ export function Felt({ view, onPlay }: { view: ViewState; onPlay: (i: number) =>
         }
       }
     }
+
+    const winsLen = pub.trickWins.length
+    const trickEnded = pub.trick.length === 0 && (e.prevTrickLen > 0 || winsLen > e.prevWinsLen)
+
     if (pub.trick.length > e.prevTrickLen) {
-      const play = pub.trick[pub.trick.length - 1]
-      if (play) flyToTrick(play)
-    } else if (pub.trick.length === 0 && e.prevTrickLen > 0) {
+      for (const play of pub.trick.slice(e.prevTrickLen)) {
+        if (play) flyToTrick(play)
+      }
+    }
+
+    reconcileHand()
+    ingestOppPlays()
+
+    if (trickEnded && e.trick.length > 0) {
       sweepTrick()
     }
+
     e.prevTrickLen = pub.trick.length
-    reconcileHand()
+    e.prevWinsLen = winsLen
+
     if (pub.reveal && pub.reveal.length > 0) flipReveal()
     else if (e.revealing && (!pub.reveal || pub.reveal.length === 0)) {
       clearGroup(e.reveal)
@@ -464,7 +479,7 @@ export function Felt({ view, onPlay }: { view: ViewState; onPlay: (i: number) =>
               key={viz.id}
               viz={viz}
               onPlay={(id) => {
-                const vizCard = engine.current.hand.find((c) => c && c.id === id)
+                const vizCard = engine.current.hand.find((c) => c.id === id)
                 if (!vizCard?.card) return
                 const idx = viewRef.current.myHand.findIndex((c) => sameCard(c, vizCard.card!))
                 if (idx >= 0) onPlayRef.current(idx)
