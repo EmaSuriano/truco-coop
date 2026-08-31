@@ -27,6 +27,30 @@ export function shuffle<T>(cards: T[]): T[] {
   return a
 }
 
+/** Deterministic PRNG. Used only by shuffleWithSeed. */
+export function mulberry32(seed: number): () => number {
+  let s = seed | 0
+  return () => {
+    s = (s + 0x6d2b79f5) | 0
+    let t = Math.imul(s ^ (s >>> 15), 1 | s)
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+  }
+}
+
+/** Seeded Fisher–Yates. Same cards + same seed => same order. Reducer DEAL uses this. */
+export function shuffleWithSeed<T>(cards: T[], seed: number): T[] {
+  const rand = mulberry32(seed)
+  const a = cards.slice()
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(rand() * (i + 1))
+    const tmp = a[i]!
+    a[i] = a[j]!
+    a[j] = tmp
+  }
+  return a
+}
+
 /** Higher number wins the trick. */
 export function trucoRank(card: Card): number {
   const { suit, rank } = card
