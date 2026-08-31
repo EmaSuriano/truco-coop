@@ -19,6 +19,7 @@ import {
   envidoOf,
 } from './deck'
 import { t, onLocale } from './i18n'
+import { installTable } from './table'
 
 type ChantName = 'envido' | 'real' | 'falta' | 'truco' | 'retruco' | 'vale'
 type ActName = ChantName | 'play' | 'quiero' | 'no'
@@ -951,8 +952,11 @@ export function startGame(
     }
   }
 
+  let tableSync: (pub: Pub | null) => void = () => {}
+
   function refreshUi() {
     refreshHud()
+    tableSync(lastPub)
   }
 
   onLocale(refreshHud)
@@ -981,88 +985,21 @@ export function startGame(
     return { x: WIDTH - 86, y: HEIGHT / 2 }
   }
 
-  function localCardLayout(): { x: number; y: number; w: number; h: number; i: number }[] {
-    const n = myHand.length
-    const w = 72
-    const h = 100
-    const gap = 12
-    const total = n * w + Math.max(0, n - 1) * gap
-    const x0 = WIDTH / 2 - total / 2
-    const y = HEIGHT - 148
-    const out: { x: number; y: number; w: number; h: number; i: number }[] = []
-    for (let i = 0; i < n; i++) out.push({ x: x0 + i * (w + gap), y, w, h, i })
-    return out
-  }
-
-  k.onMousePress(() => {
-    const legal = localLegal()
-    if (!legal.includes('play')) return
-    const m = k.mousePos()
-    for (const h of localCardLayout()) {
-      if (m.x >= h.x && m.x <= h.x + h.w && m.y >= h.y && m.y <= h.y + h.h) {
-        submitAct({ t: 'play', i: h.i })
-        return
-      }
-    }
+  const table = installTable(k, {
+    visOf,
+    seatAnchor,
+    getSeats: () => seats,
+    getSeat: () => mySeat,
+    getHand: () => myHand,
+    localLegal,
+    submitPlay: (i) => submitAct({ t: 'play', i }),
+    cardLabel,
+    hexColor,
   })
-
-  function drawSpriteBox(name: string, x: number, y: number, w: number, h: number): boolean {
-    if (!artReady) return false
-    try {
-      k.drawSprite({ sprite: name, pos: k.vec2(x, y), width: w, height: h })
-      return true
-    } catch {
-      return false
-    }
-  }
-
-  function drawFelt() {
-    if (drawSpriteBox('felt', 0, 0, WIDTH, HEIGHT)) return
-    k.drawRect({
-      pos: k.vec2(0, 0),
-      width: WIDTH,
-      height: HEIGHT,
-      color: hexColor('#4a1218'),
-    })
-  }
-
-  function drawCardFace(x: number, y: number, w: number, h: number, card: Card) {
-    if (drawSpriteBox(`card-${card.suit}-${card.rank}`, x, y, w, h)) return
-    k.drawRect({
-      pos: k.vec2(x, y),
-      width: w,
-      height: h,
-      radius: 6,
-      color: hexColor('#f4ecd0'),
-      outline: { width: 2, color: hexColor('#2a2418') },
-    })
-    const red = SUIT_RED[card.suit]
-    k.drawText({
-      text: cardLabel(card),
-      pos: k.vec2(x + w / 2, y + h / 2),
-      size: w > 50 ? 22 : 14,
-      color: hexColor(red ? '#c0392b' : '#1b1b1b'),
-      anchor: 'center',
-    })
-  }
-
-  function drawCardBack(x: number, y: number, w: number, h: number) {
-    if (drawSpriteBox('card-back', x, y, w, h)) return
-    k.drawRect({
-      pos: k.vec2(x, y),
-      width: w,
-      height: h,
-      radius: 6,
-      color: hexColor('#7a1f2b'),
-      outline: { width: 2, color: hexColor('#2a1014') },
-    })
-  }
+  tableSync = table.sync
 
   k.onDraw(() => {
-    drawFelt()
     const pub = lastPub
-    const origin = mySeat < 0 ? 0 : mySeat
-
     if (pub) {
       let banner = pub.log
       if (pub.winnerTeam !== null) banner = t('teamWins', { team: pub.winnerTeam })
@@ -1078,7 +1015,6 @@ export function startGame(
       })
     }
 
-    const leftCounts = pub ? pub.cardsLeft : zeros(seats)
     for (let seat = 0; seat < seats; seat++) {
       const vis = visOf(seat)
       const a = seatAnchor(vis)
@@ -1114,69 +1050,9 @@ export function startGame(
         color: hexColor(isActor ? '#f2d48a' : you ? HOST_COLOR : '#d7dbe6'),
         anchor: 'center',
       })
-
-      if (vis === 0 && mySeat >= 0) {
-        const layout = localCardLayout()
-        const canPlay = localLegal().includes('play')
-        for (const h of layout) {
-          const card = myHand[h.i]
-          if (!card) continue
-          if (canPlay) {
-            k.drawRect({
-              pos: k.vec2(h.x - 4, h.y - 4),
-              width: h.w + 8,
-              height: h.h + 8,
-              radius: 8,
-              color: hexColor('#e0b84a'),
-            })
-          }
-          drawCardFace(h.x, h.y, h.w, h.h, card)
-        }
-      } else {
-        const n = leftCounts[seat] ?? 0
-        const w = 36
-        const h = 50
-        const gap = 6
-        const total = n * w + Math.max(0, n - 1) * gap
-        let x0 = a.x - total / 2
-        let y0 = a.y - h / 2
-        if (vis === 1 || vis === 3) {
-          x0 = a.x - w / 2
-          y0 = a.y - (n * (h + gap) - gap) / 2
-        }
-        for (let i = 0; i < n; i++) {
-          const x = vis === 1 || vis === 3 ? x0 : x0 + i * (w + gap)
-          const y = vis === 1 || vis === 3 ? y0 + i * (h + gap) : y0
-          drawCardBack(x, y, w, h)
-        }
-      }
     }
 
     if (pub) {
-      for (const p of pub.trick) {
-        const vis = visOf(p.seat)
-        const cx = WIDTH / 2 + (vis === 1 ? -70 : vis === 3 ? 70 : 0)
-        const cy = HEIGHT / 2 + (vis === 0 ? 52 : vis === 2 ? -52 : 0) - 10
-        drawCardFace(cx - 28, cy - 40, 56, 80, p.card)
-        k.drawText({
-          text: `P${p.seat}`,
-          pos: k.vec2(cx, cy + 48),
-          size: 11,
-          color: hexColor('#e7e9ee'),
-          anchor: 'center',
-        })
-      }
-
-      if (pub.reveal && pub.reveal.length > 0) {
-        for (const r of pub.reveal) {
-          const vis = visOf(r.seat)
-          const a = seatAnchor(vis)
-          r.cards.forEach((card, i) => {
-            drawCardFace(a.x - 40 + i * 44, a.y - 90, 40, 56, card)
-          })
-        }
-      }
-
       const tw = pub.trickWins.map((x) => (x === 'parda' ? 'P' : `T${x}`)).join(' ')
       k.drawText({
         text: tw ? `tricks ${tw}   hand ${pub.handPoints}pt` : `hand ${pub.handPoints}pt`,
