@@ -301,7 +301,7 @@
     background-repeat: no-repeat;
     background-position: center;
     border: none;
-    color: var(--accent);
+    color: var(--ink);
     min-width: 104px;
     height: 36px;
     padding: 0 18px;
@@ -315,7 +315,7 @@
   #chantBar button:hover:not(:disabled) {
     background-color: transparent;
     background-image: var(--chant-idle);
-    color: var(--accent);
+    color: var(--ink);
     filter: brightness(1.08);
     border: none;
   }
@@ -338,7 +338,7 @@
     font-weight: bold;
     box-shadow: none;
     background-color: transparent;
-    color: var(--accent);
+    color: var(--ink);
   }
   #chantBar button.chantBtn.long {
     min-width: 138px;
