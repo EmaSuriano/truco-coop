@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
 
 const mqttMinPath = fileURLToPath(new URL('./node_modules/mqtt/dist/mqtt.min.js', import.meta.url))
 
@@ -31,5 +32,5 @@ function mqttIifeShim() {
 export default defineConfig({
   base: process.env.VITE_BASE || '/',
   server: { port: 3000, strictPort: true, host: true },
-  plugins: [mqttIifeShim()],
+  plugins: [mqttIifeShim(), react()],
 })

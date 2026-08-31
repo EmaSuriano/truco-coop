@@ -148,45 +148,8 @@ export function t(key: keyof Dict, vars?: Record<string, string | number>): stri
   return s
 }
 
-function setText(id: string, value: string) {
-  const el = document.getElementById(id)
-  if (el) el.textContent = value
-}
-
-function setLabelAfterInput(inputId: string, label: string) {
-  const wrap = document.querySelector('#' + inputId)?.parentElement
-  if (!wrap) return
-  const input = wrap.querySelector('input')
-  wrap.textContent = ''
-  if (input) wrap.append(input, ' ' + label)
-}
-
 export function applyChrome() {
   document.documentElement.lang = locale
-  const sub = document.querySelector('#card p.sub')
-  if (sub) sub.textContent = t('sub')
-  const players = document.querySelector('#tableSizeRow > label')
-  if (players) players.textContent = t('players')
-  const playTo = document.querySelector('#targetScoreRow > label')
-  if (playTo) playTo.textContent = t('playTo')
-  setLabelAfterInput('tableSize2', t('size2'))
-  setLabelAfterInput('tableSize4', t('size4'))
-  const hostBtn = document.getElementById('hostBtn') as HTMLButtonElement | null
-  if (hostBtn && !hostBtn.disabled) hostBtn.textContent = t('createRoom')
-  const shareLab = document.querySelector('#linkRow > label')
-  if (shareLab) shareLab.textContent = t('shareLink')
-  const copyBtn = document.getElementById('copyBtn')
-  if (copyBtn) copyBtn.textContent = t('copy')
-  setText('hudYou', t('you'))
-  setText('hudCardsLabel', t('cards'))
-  setText('hudTurnLabel', t('turn'))
-  setText('hudScoreLabel', t('score'))
-  setText('hudPeers', t('peers'))
-  setText('hudConnectedLabel', t('connected'))
-  setText('scoreUsLabel', t('us'))
-  setText('scoreThemLabel', t('them'))
-  document.getElementById('langEs')?.classList.toggle('on', locale === 'es')
-  document.getElementById('langEn')?.classList.toggle('on', locale === 'en')
 }
 
 export function setLocale(next: Locale) {
@@ -200,13 +163,15 @@ export function setLocale(next: Locale) {
   for (const fn of listeners) fn()
 }
 
-export function onLocale(fn: () => void) {
+export function onLocale(fn: () => void): () => void {
   listeners.push(fn)
+  return () => {
+    const i = listeners.indexOf(fn)
+    if (i >= 0) listeners.splice(i, 1)
+  }
 }
 
 export function initI18n() {
   locale = readStored()
-  document.getElementById('langEs')?.addEventListener('click', () => setLocale('es'))
-  document.getElementById('langEn')?.addEventListener('click', () => setLocale('en'))
   applyChrome()
 }

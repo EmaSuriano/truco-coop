@@ -1,7 +1,5 @@
 import type { Room } from '@trystero-p2p/mqtt'
 import {
-  WIDTH,
-  HEIGHT,
   MAX_SEATS,
   TEAM_COUNT,
   MALAS,
@@ -15,15 +13,13 @@ import {
   trucoRank,
   envidoOf,
 } from './deck'
-import { t, onLocale } from './i18n'
-import { installTable } from './table'
 
-type ChantName = 'envido' | 'real' | 'falta' | 'truco' | 'retruco' | 'vale'
-type ActName = ChantName | 'play' | 'quiero' | 'no'
+export type ChantName = 'envido' | 'real' | 'falta' | 'truco' | 'retruco' | 'vale'
+export type ActName = ChantName | 'play' | 'quiero' | 'no'
 type Phase = 'wait' | 'play' | 'pending' | 'between' | 'done'
 type TrickMark = number | 'parda'
 
-type Pending = {
+export type Pending = {
   kind: 'envido' | 'truco'
   fromSeat: number
   want: number
@@ -35,7 +31,7 @@ type TrickPlay = { seat: number; card: Card }
 
 type Reveal = { seat: number; cards: Card[] }
 
-type Pub = {
+export type Pub = {
   scores: number[]
   dealer: number
   mano: number
@@ -60,7 +56,7 @@ type Pub = {
 
 type HelloMsg = { seat: number }
 type HandMsg = { cards: Card[] }
-type ActMsg =
+export type ActMsg =
   | { t: 'play'; i: number }
   | { t: 'chant'; name: ChantName }
   | { t: 'quiero' }
@@ -83,7 +79,7 @@ const SUIT_RED: Record<Card['suit'], boolean> = {
   copa: true,
 }
 
-const CHANT_LABEL: Record<ChantName, string> = {
+export const CHANT_LABEL: Record<ChantName, string> = {
   envido: 'Envido',
   real: 'Real Envido',
   falta: 'Falta Envido',
@@ -91,17 +87,6 @@ const CHANT_LABEL: Record<ChantName, string> = {
   retruco: 'Retruco',
   vale: 'Vale cuatro',
 }
-
-const BTN_IDS: { name: ActName; id: string }[] = [
-  { name: 'envido', id: 'btnEnvido' },
-  { name: 'real', id: 'btnReal' },
-  { name: 'falta', id: 'btnFalta' },
-  { name: 'truco', id: 'btnTruco' },
-  { name: 'retruco', id: 'btnRetruco' },
-  { name: 'vale', id: 'btnVale' },
-  { name: 'quiero', id: 'btnQuiero' },
-  { name: 'no', id: 'btnNo' },
-]
 
 function emptyHands(): Card[][] {
   return Array.from({ length: MAX_SEATS }, () => [])
@@ -173,19 +158,49 @@ function trucoRaises(ladder: string[]): ChantName[] {
   return ['truco']
 }
 
-function cardLabel(card: Card): string {
+export function cardLabel(card: Card): string {
   return `${card.rank}${SUIT_MARK[card.suit]}`
 }
 
-function chantLabel(name: string): string {
+export function chantLabel(name: string): string {
   return CHANT_LABEL[name as ChantName] || name
+}
+
+export type ViewState = {
+  mySeat: number
+  myHand: Card[]
+  lastPub: Pub | null
+  peerCount: number
+  isHost: boolean
+}
+
+export type GameStore = {
+  subscribe(fn: () => void): () => void
+  getState(): ViewState
+  dispatch(act: ActMsg): void
+  destroy(): void
+}
+
+export function actorSeat(pub: Pub | null): number | null {
+  if (!pub || pub.winnerTeam !== null) return null
+  if (pub.phase === 'wait' || pub.phase === 'done' || pub.phase === 'between') return null
+  if (pub.pending) {
+    const n = pub.seatCount || pub.legal.length
+    for (let s = 0; s < n; s++) {
+      const legal = pub.legal[s] || []
+      if (legal.includes('quiero') || legal.includes('no')) return s
+    }
+    return null
+  }
+  if (pub.phase === 'play') return pub.turn
+  return null
 }
 
 export function startGame(
   room: Room,
-  opts: { isHost: boolean; felt: HTMLElement; peerCountEl: HTMLElement; tableSize?: 2 | 4; targetScore?: 15 | 30 },
-): void {
-  const { isHost, felt, peerCountEl } = opts
+  opts: { isHost: boolean; tableSize?: 2 | 4; targetScore?: 15 | 30 },
+): GameStore {
+  const { isHost } = opts
   let seats: 2 | 4 = opts.tableSize === 4 ? 4 : 2
   let target: 15 | 30 = opts.targetScore === 30 ? 30 : 15
 
@@ -303,7 +318,26 @@ export function startGame(
   let trucoLastTeam = -1
   let dealGen = 0
   let lastPub: Pub | null = null
-  let tableSync: (pub: Pub | null) => void = () => {}
+
+  const listeners = new Set<() => void>()
+  let snapshot: ViewState = {
+    mySeat,
+    myHand: myHand.slice(),
+    lastPub,
+    peerCount: 0,
+    isHost,
+  }
+
+  function notify() {
+    snapshot = {
+      mySeat,
+      myHand: myHand.slice(),
+      lastPub,
+      peerCount: peers.size,
+      isHost,
+    }
+    for (const fn of listeners) fn()
+  }
 
   function seatsFilled(): number {
     if (!isHost) return lastPub ? lastPub.seatsFilled : 1
@@ -313,7 +347,7 @@ export function startGame(
   }
 
   function refreshPeerCount() {
-    peerCountEl.textContent = String(peers.size)
+    notify()
   }
 
   function cardsLeftNow(): number[] {
@@ -417,7 +451,7 @@ export function startGame(
       playSfx(pub.sfx)
     }
     lastPub = pub
-    refreshUi()
+    notify()
   }
 
   function broadcast() {
@@ -425,7 +459,7 @@ export function startGame(
     const pub = buildPub()
     lastPub = pub
     void pubAction.send(pub)
-    refreshUi()
+    notify()
   }
 
   function sendHandTo(seat: number) {
@@ -826,7 +860,7 @@ export function startGame(
     if (isHost) return
     if (data && typeof data.seat === 'number') {
       mySeat = data.seat
-      refreshUi()
+      notify()
     }
   }
 
@@ -834,7 +868,7 @@ export function startGame(
     if (isHost) return
     if (data && Array.isArray(data.cards)) {
       myHand = data.cards.map((c) => ({ suit: c.suit, rank: c.rank }))
-      refreshUi()
+      notify()
     }
   }
 
@@ -850,129 +884,7 @@ export function startGame(
     applyAct(seat, data)
   }
 
-  function localLegal(): string[] {
-    if (mySeat < 0) return []
-    if (lastPub && lastPub.legal[mySeat]) return lastPub.legal[mySeat]!
-    return []
-  }
 
-  function actorSeat(pub: Pub | null): number | null {
-    if (!pub || pub.winnerTeam !== null) return null
-    if (pub.phase === 'wait' || pub.phase === 'done' || pub.phase === 'between') return null
-    if (pub.pending) {
-      for (let s = 0; s < seats; s++) {
-        const legal = pub.legal[s] || []
-        if (legal.includes('quiero') || legal.includes('no')) return s
-      }
-      return null
-    }
-    if (pub.phase === 'play') return pub.turn
-    return null
-  }
-
-  function refreshHud() {
-    const pub = lastPub
-    const handEl = document.getElementById('hudHand')
-    const turnEl = document.getElementById('hudTurn')
-    const scoreEl = document.getElementById('hudScore')
-    const banner = document.getElementById('turnBanner')
-    const hint = document.getElementById('actionHint')
-    const usEl = document.getElementById('scoreUs')
-    const themEl = document.getElementById('scoreThem')
-    const usCap = document.getElementById('scoreUsCap')
-    const themCap = document.getElementById('scoreThemCap')
-    if (handEl) {
-      handEl.textContent = mySeat < 0 ? t('spectating') : myHand.map(cardLabel).join(' ') || '—'
-    }
-    const actor = actorSeat(pub)
-    let turnText = '—'
-    if (!pub) turnText = '—'
-    else if (pub.winnerTeam !== null) turnText = t('matchOver', { team: pub.winnerTeam })
-    else if (pub.phase === 'wait') turnText = t('waitingHud', { filled: pub.seatsFilled, seats: pub.seatCount || seats })
-    else if (pub.pending) {
-      const chant = chantLabel(pub.pending.ladder[pub.pending.ladder.length - 1] || pub.lastChant)
-      turnText = actor === mySeat ? t('youAnswer', { chant }) : actor !== null ? t('pAnswers', { chant, n: actor }) : chant
-    } else if (actor === mySeat) turnText = t('yourTurn')
-    else if (actor !== null) turnText = t('pPlays', { n: actor })
-    if (turnEl) turnEl.textContent = turnText
-    if (banner) banner.textContent = turnText
-
-    const cap = pub ? pub.target || target : target
-    const origin = mySeat < 0 ? 0 : mySeat
-    const us = teamOf(origin, seats)
-    const them = (us + 1) % TEAM_COUNT
-    const usScore = pub ? pub.scores[us] ?? 0 : 0
-    const themScore = pub ? pub.scores[them] ?? 0 : 0
-    if (scoreEl) {
-      if (!pub) scoreEl.textContent = '—'
-      else if (mySeat < 0) scoreEl.textContent = `${pub.scores[0] ?? 0}/${cap}–${pub.scores[1] ?? 0}/${cap}`
-      else scoreEl.textContent = `${t('us')} ${usScore}/${cap}  ${t('them')} ${themScore}/${cap}`
-    }
-    if (usEl) usEl.textContent = String(usScore)
-    if (themEl) themEl.textContent = String(themScore)
-    if (usCap) usCap.textContent = `/${cap}`
-    if (themCap) themCap.textContent = `/${cap}`
-
-    const legal = localLegal()
-    for (const { name, id } of BTN_IDS) {
-      const el = document.getElementById(id) as HTMLButtonElement | null
-      if (!el) continue
-      el.disabled = !legal.includes(name)
-    }
-    if (hint) {
-      if (legal.includes('quiero') || legal.includes('no')) hint.textContent = t('answerChant')
-      else if (legal.includes('play')) hint.textContent = t('clickCard')
-      else if (legal.length > 0) hint.textContent = t('yourChants')
-      else if (actor !== null && actor !== mySeat) hint.textContent = t('waitingOn', { n: actor })
-      else hint.textContent = ''
-    }
-  }
-
-  function refreshUi() {
-    refreshHud()
-    tableSync(lastPub)
-  }
-
-  onLocale(refreshUi)
-
-  for (const { name, id } of BTN_IDS) {
-    const el = document.getElementById(id)
-    if (!el) continue
-    el.addEventListener('click', () => {
-      if (name === 'quiero') submitAct({ t: 'quiero' })
-      else if (name === 'no') submitAct({ t: 'no' })
-      else if (name !== 'play') submitAct({ t: 'chant', name })
-    })
-  }
-
-  function visOf(seat: number): number {
-    const origin = mySeat < 0 ? 0 : mySeat
-    const rel = (seat - origin + seats) % seats
-    if (seats === 2) return rel === 0 ? 0 : 2
-    return rel
-  }
-
-  function seatAnchor(vis: number): { x: number; y: number } {
-    if (vis === 0) return { x: WIDTH / 2, y: HEIGHT - 58 }
-    if (vis === 1) return { x: 86, y: HEIGHT / 2 }
-    if (vis === 2) return { x: WIDTH / 2, y: 64 }
-    return { x: WIDTH - 86, y: HEIGHT / 2 }
-  }
-
-  const table = installTable(felt, {
-    visOf,
-    seatAnchor,
-    getSeats: () => seats,
-    getSeat: () => mySeat,
-    getHand: () => myHand,
-    localLegal,
-    submitPlay: (i) => submitAct({ t: 'play', i }),
-    cardLabel,
-    publicUrl,
-    t,
-    chantLabel,
-  })
-  tableSync = table.sync
   loadAudio()
 
   if (typeof room.getPeers === 'function') {
@@ -983,6 +895,34 @@ export function startGame(
 
   if (isHost) {
     lastPub = buildPub()
-    refreshUi()
+  }
+
+  notify()
+
+  return {
+    subscribe(fn: () => void) {
+      listeners.add(fn)
+      return () => {
+        listeners.delete(fn)
+      }
+    },
+    getState() {
+      return snapshot
+    },
+    dispatch(act: ActMsg) {
+      submitAct(act)
+    },
+    destroy() {
+      const bgm = sounds.get('bgm')
+      if (bgm) {
+        try {
+          bgm.pause()
+          bgm.src = ''
+        } catch {
+          /* mute-safe */
+        }
+      }
+      listeners.clear()
+    },
   }
 }
