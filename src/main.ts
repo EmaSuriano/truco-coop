@@ -14,6 +14,7 @@ let roomCode = roomParam
 
 const overlay = required<HTMLElement>('overlay')
 const hostBtn = required<HTMLButtonElement>('hostBtn')
+const tableSizeRow = required<HTMLElement>('tableSizeRow')
 const linkRow = required<HTMLElement>('linkRow')
 const linkInput = required<HTMLInputElement>('linkInput')
 const copyBtn = required<HTMLButtonElement>('copyBtn')
@@ -29,13 +30,19 @@ function showError(msg: string) {
   statusEl.textContent = msg
 }
 
+function readTableSize(): 2 | 4 {
+  const el = document.querySelector('input[name="tableSize"]:checked') as HTMLInputElement | null
+  return el && el.value === '2' ? 2 : 4
+}
+
 function go(code: string) {
   const room = connectRoom(code, (details) => {
     showError(details.error)
   })
   overlay.style.display = 'none'
   gameWrap.style.display = 'flex'
-  startGame(room, { isHost, canvas: gameCanvas, peerCountEl })
+  const tableSize = isHost ? readTableSize() : 4
+  startGame(room, { isHost, canvas: gameCanvas, peerCountEl, tableSize })
 }
 
 copyBtn.addEventListener('click', () => {
@@ -55,7 +62,7 @@ function onHostClick() {
     linkRow.classList.add('show')
     history.replaceState(null, '', link)
     statusEl.classList.remove('err')
-    statusEl.textContent = 'Room created. Waiting for a friend to join...'
+    statusEl.textContent = readTableSize() === 2 ? 'Room created. Waiting for 1 more…' : 'Room created. Waiting for 3 more…'
     hostBtn.disabled = true
     hostBtn.textContent = 'Room open'
     go(roomCode)
@@ -72,6 +79,7 @@ function boot() {
     return
   }
   hostBtn.style.display = 'none'
+  tableSizeRow.style.display = 'none'
   statusEl.textContent = 'Joining room "' + roomParam + '"...'
   go(roomParam)
 }
