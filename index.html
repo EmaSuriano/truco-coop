@@ -17,13 +17,21 @@
       <img id="titleArt" alt="Truco">
       <span class="titleFallback">Truco Coop</span>
     </h1>
-    <p class="sub">Argentine Truco. Host picks table size, then share the link.</p>
+    <p class="sub">Argentine Truco. Host picks table size and chico, then share the link.</p>
 
     <div class="row" id="tableSizeRow">
       <label>Players</label>
       <div class="choice">
-        <label class="choiceOpt"><input type="radio" name="tableSize" id="tableSize2" value="2"> 2 — 1v1</label>
-        <label class="choiceOpt"><input type="radio" name="tableSize" id="tableSize4" value="4" checked> 4 — 2v2</label>
+        <label class="choiceOpt"><input type="radio" name="tableSize" id="tableSize2" value="2" checked> 2 — 1v1</label>
+        <label class="choiceOpt"><input type="radio" name="tableSize" id="tableSize4" value="4"> 4 — 2v2</label>
+      </div>
+    </div>
+
+    <div class="row" id="targetScoreRow">
+      <label>Play to</label>
+      <div class="choice">
+        <label class="choiceOpt"><input type="radio" name="targetScore" id="target15" value="15" checked> 15</label>
+        <label class="choiceOpt"><input type="radio" name="targetScore" id="target30" value="30"> 30</label>
       </div>
     </div>
 
