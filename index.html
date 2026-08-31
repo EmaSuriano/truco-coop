@@ -3,15 +3,23 @@
 <head>
 <meta charset="UTF-8">
 <title>Truco Coop</title>
-  <script type="module" crossorigin src="/truco-coop/assets/index-wGnx0CcJ.js"></script>
-  <link rel="stylesheet" crossorigin href="/truco-coop/assets/index-DO8Krv82.css">
+  <script type="module" crossorigin src="/truco-coop/assets/index-BeQqR10w.js"></script>
+  <link rel="stylesheet" crossorigin href="/truco-coop/assets/index-sbPwOnOq.css">
 </head>
 <body>
 
 <div id="overlay">
   <div id="card">
     <h1>Truco Coop</h1>
-    <p class="sub">4-player Argentine Truco. Host a room, share the link.</p>
+    <p class="sub">Argentine Truco. Host picks table size, then share the link.</p>
+
+    <div class="row" id="tableSizeRow">
+      <label>Players</label>
+      <div class="choice">
+        <label class="choiceOpt"><input type="radio" name="tableSize" id="tableSize2" value="2"> 2 — 1v1</label>
+        <label class="choiceOpt"><input type="radio" name="tableSize" id="tableSize4" value="4" checked> 4 — 2v2</label>
+      </div>
+    </div>
 
     <div class="row">
       <button class="primary" id="hostBtn">Create Room</button>
