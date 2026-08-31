@@ -18,6 +18,7 @@ import {
   trucoRank,
   envidoOf,
 } from './deck'
+import { t, onLocale } from './i18n'
 
 type ChantName = 'envido' | 'real' | 'falta' | 'truco' | 'retruco' | 'vale'
 type ActName = ChantName | 'play' | 'quiero' | 'no'
@@ -904,18 +905,18 @@ export function startGame(
     const usCap = document.getElementById('scoreUsCap')
     const themCap = document.getElementById('scoreThemCap')
     if (handEl) {
-      handEl.textContent = mySeat < 0 ? 'spectating' : myHand.map(cardLabel).join(' ') || '—'
+      handEl.textContent = mySeat < 0 ? t('spectating') : myHand.map(cardLabel).join(' ') || '—'
     }
     const actor = actorSeat(pub)
     let turnText = '—'
     if (!pub) turnText = '—'
-    else if (pub.winnerTeam !== null) turnText = `match over (team ${pub.winnerTeam})`
-    else if (pub.phase === 'wait') turnText = `waiting ${pub.seatsFilled}/${pub.seatCount || seats}`
+    else if (pub.winnerTeam !== null) turnText = t('matchOver', { team: pub.winnerTeam })
+    else if (pub.phase === 'wait') turnText = t('waitingHud', { filled: pub.seatsFilled, seats: pub.seatCount || seats })
     else if (pub.pending) {
       const chant = chantLabel(pub.pending.ladder[pub.pending.ladder.length - 1] || pub.lastChant)
-      turnText = actor === mySeat ? `${chant} — you answer` : actor !== null ? `${chant} — P${actor} answers` : `${chant} — answer`
-    } else if (actor === mySeat) turnText = 'your turn'
-    else if (actor !== null) turnText = `P${actor} plays`
+      turnText = actor === mySeat ? t('youAnswer', { chant }) : actor !== null ? t('pAnswers', { chant, n: actor }) : chant
+    } else if (actor === mySeat) turnText = t('yourTurn')
+    else if (actor !== null) turnText = t('pPlays', { n: actor })
     if (turnEl) turnEl.textContent = turnText
     if (banner) banner.textContent = turnText
 
@@ -928,7 +929,7 @@ export function startGame(
     if (scoreEl) {
       if (!pub) scoreEl.textContent = '—'
       else if (mySeat < 0) scoreEl.textContent = `${pub.scores[0] ?? 0}/${cap}–${pub.scores[1] ?? 0}/${cap}`
-      else scoreEl.textContent = `US ${usScore}/${cap}  THEM ${themScore}/${cap}`
+      else scoreEl.textContent = `${t('us')} ${usScore}/${cap}  ${t('them')} ${themScore}/${cap}`
     }
     if (usEl) usEl.textContent = String(usScore)
     if (themEl) themEl.textContent = String(themScore)
@@ -942,10 +943,10 @@ export function startGame(
       el.disabled = !legal.includes(name)
     }
     if (hint) {
-      if (legal.includes('quiero') || legal.includes('no')) hint.textContent = 'Answer the chant'
-      else if (legal.includes('play')) hint.textContent = 'Click a card, or chant'
-      else if (legal.length > 0) hint.textContent = 'Your chants'
-      else if (actor !== null && actor !== mySeat) hint.textContent = `Waiting on P${actor}`
+      if (legal.includes('quiero') || legal.includes('no')) hint.textContent = t('answerChant')
+      else if (legal.includes('play')) hint.textContent = t('clickCard')
+      else if (legal.length > 0) hint.textContent = t('yourChants')
+      else if (actor !== null && actor !== mySeat) hint.textContent = t('waitingOn', { n: actor })
       else hint.textContent = ''
     }
   }
@@ -953,6 +954,8 @@ export function startGame(
   function refreshUi() {
     refreshHud()
   }
+
+  onLocale(refreshHud)
 
   for (const { name, id } of BTN_IDS) {
     const el = document.getElementById(id)
@@ -1062,7 +1065,7 @@ export function startGame(
 
     if (pub) {
       let banner = pub.log
-      if (pub.winnerTeam !== null) banner = `Team ${pub.winnerTeam} wins the match`
+      if (pub.winnerTeam !== null) banner = t('teamWins', { team: pub.winnerTeam })
       else if (pub.pending) {
         banner = `${chantLabel(pub.pending.ladder[pub.pending.ladder.length - 1] || '')}  want ${pub.pending.want} / no ${pub.pending.no}`
       }
@@ -1085,7 +1088,7 @@ export function startGame(
       const isActor = pub && pub.pending
         ? legalHere.includes('quiero') || legalHere.includes('no')
         : actor === seat
-      const tag = you ? `YOU P${seat}` : `P${seat}`
+      const tag = you ? `${t('you')} P${seat}` : `P${seat}`
       const tagY = vis === 0 ? a.y + 8 : a.y - 46
       if (isActor) {
         k.drawRect({
@@ -1097,7 +1100,7 @@ export function startGame(
           outline: { width: 2, color: hexColor('#e0b84a') },
         })
         k.drawText({
-          text: pub && pub.pending ? 'ANSWERS' : 'PLAYS',
+          text: pub && pub.pending ? t('answers') : t('plays'),
           pos: k.vec2(a.x, tagY - 17),
           size: 12,
           color: hexColor('#f2d48a'),
