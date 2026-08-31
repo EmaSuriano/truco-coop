@@ -35,6 +35,7 @@ let roomCode = roomParam
 const overlay = required<HTMLElement>('overlay')
 const hostBtn = required<HTMLButtonElement>('hostBtn')
 const tableSizeRow = required<HTMLElement>('tableSizeRow')
+const targetScoreRow = required<HTMLElement>('targetScoreRow')
 const linkRow = required<HTMLElement>('linkRow')
 const linkInput = required<HTMLInputElement>('linkInput')
 const copyBtn = required<HTMLButtonElement>('copyBtn')
@@ -52,7 +53,12 @@ function showError(msg: string) {
 
 function readTableSize(): 2 | 4 {
   const el = document.querySelector('input[name="tableSize"]:checked') as HTMLInputElement | null
-  return el && el.value === '2' ? 2 : 4
+  return el && el.value === '4' ? 4 : 2
+}
+
+function readTargetScore(): 15 | 30 {
+  const el = document.querySelector('input[name="targetScore"]:checked') as HTMLInputElement | null
+  return el && el.value === '30' ? 30 : 15
 }
 
 function go(code: string) {
@@ -61,8 +67,9 @@ function go(code: string) {
   })
   overlay.style.display = 'none'
   gameWrap.style.display = 'flex'
-  const tableSize = isHost ? readTableSize() : 4
-  startGame(room, { isHost, canvas: gameCanvas, peerCountEl, tableSize })
+  const tableSize = isHost ? readTableSize() : 2
+  const targetScore = isHost ? readTargetScore() : 15
+  startGame(room, { isHost, canvas: gameCanvas, peerCountEl, tableSize, targetScore })
 }
 
 copyBtn.addEventListener('click', () => {
@@ -100,6 +107,7 @@ function boot() {
   }
   hostBtn.style.display = 'none'
   tableSizeRow.style.display = 'none'
+  targetScoreRow.style.display = 'none'
   statusEl.textContent = 'Joining room "' + roomParam + '"...'
   go(roomParam)
 }
