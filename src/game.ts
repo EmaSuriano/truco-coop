@@ -3,7 +3,7 @@ import type { Room } from '@trystero-p2p/mqtt'
 import {
   WIDTH,
   HEIGHT,
-  SEAT_COUNT,
+  MAX_SEATS,
   TEAM_COUNT,
   TARGET,
   MALAS,
@@ -51,6 +51,7 @@ type Pub = {
   log: string
   winnerTeam: number | null
   seatsFilled: number
+  seatCount: number
   legal: string[][]
   reveal: Reveal[]
   handPoints: number
@@ -102,7 +103,7 @@ const BTN_IDS: { name: ActName; id: string }[] = [
 ]
 
 function emptyHands(): Card[][] {
-  return Array.from({ length: SEAT_COUNT }, () => [])
+  return Array.from({ length: MAX_SEATS }, () => [])
 }
 
 function zeros(n: number): number[] {
@@ -110,7 +111,7 @@ function zeros(n: number): number[] {
 }
 
 function emptyLegal(): string[][] {
-  return Array.from({ length: SEAT_COUNT }, () => [])
+  return Array.from({ length: MAX_SEATS }, () => [])
 }
 
 function faltaPts(scores: number[], callingTeam: number): number {
@@ -178,9 +179,10 @@ function chantLabel(name: string): string {
 
 export function startGame(
   room: Room,
-  opts: { isHost: boolean; canvas: HTMLCanvasElement; peerCountEl: HTMLElement },
+  opts: { isHost: boolean; canvas: HTMLCanvasElement; peerCountEl: HTMLElement; tableSize?: 2 | 4 },
 ): void {
   const { isHost, canvas, peerCountEl } = opts
+  let seats: 2 | 4 = isHost && opts.tableSize === 2 ? 2 : 4
 
   const k = kaplay({
     global: false,
@@ -196,11 +198,12 @@ export function startGame(
   const handAction = room.makeAction<HandMsg>('hand')
   const pubAction = room.makeAction<Pub>('pub')
   const actAction = room.makeAction<ActMsg>('act')
+  const cfgAction = room.makeAction<{ n: 2 | 4 }>('cfg')
 
   let mySeat = isHost ? 0 : -1
   let myHand: Card[] = []
   const hostHands: Card[][] | null = isHost ? emptyHands() : null
-  const peerOfSeat: (string | null)[] = Array.from({ length: SEAT_COUNT }, () => null)
+  const peerOfSeat: (string | null)[] = Array.from({ length: MAX_SEATS }, () => null)
   const seatOfPeer = new Map<string, number>()
   const peers = new Set<string>()
 
@@ -214,12 +217,12 @@ export function startGame(
   let pending: Pending | null = null
   let heldTruco: Pending | null = null
   let trickWins: TrickMark[] = []
-  let log = 'Waiting for 4 players'
+  let log = `Waiting ${1}/${seats}`
   let winnerTeam: number | null = null
   let reveal: Reveal[] = []
   let handPoints = 1
   let envidoDone = false
-  let playedCard = Array.from({ length: SEAT_COUNT }, () => false)
+  let playedCard = Array.from({ length: MAX_SEATS }, () => false)
   let trucoLadder: string[] = []
   let trucoLastTeam = -1
   let dealGen = 0
@@ -228,7 +231,7 @@ export function startGame(
   function seatsFilled(): number {
     if (!isHost) return lastPub ? lastPub.seatsFilled : 1
     let n = 1
-    for (let s = 1; s < SEAT_COUNT; s++) if (peerOfSeat[s]) n += 1
+    for (let s = 1; s < seats; s++) if (peerOfSeat[s]) n += 1
     return n
   }
 
@@ -248,8 +251,8 @@ export function startGame(
   }
 
   function cardsLeftNow(): number[] {
-    if (hostHands) return hostHands.map((h) => h.length)
-    return lastPub ? lastPub.cardsLeft : zeros(SEAT_COUNT)
+    if (hostHands) return Array.from({ length: seats }, (_, s) => hostHands[s]!.length)
+    return lastPub ? lastPub.cardsLeft : zeros(seats)
   }
 
   function legalFor(seat: number): ActName[] {
@@ -258,16 +261,16 @@ export function startGame(
     if (winnerTeam !== null || phase === 'wait' || phase === 'between' || phase === 'done') {
       return out
     }
-    if (seatsFilled() < SEAT_COUNT) return out
+    if (seatsFilled() < seats) return out
 
-    const myTeam = teamOf(seat)
+    const myTeam = teamOf(seat, seats)
     const hasPlayed = playedCard[seat]
     const firstTrick = trickWins.length === 0
     const isTurn = turn === seat && pending === null
     const canEnvidoOpen = firstTrick && !hasPlayed && !envidoDone
 
     if (pending) {
-      if (teamOf(pending.fromSeat) !== myTeam) {
+      if (teamOf(pending.fromSeat, seats) !== myTeam) {
         out.push('quiero', 'no')
         if (pending.kind === 'envido') {
           for (const n of envidoRaises(pending.ladder)) out.push(n)
@@ -278,7 +281,7 @@ export function startGame(
       if (
         pending.kind === 'truco' &&
         canEnvidoOpen &&
-        teamOf(pending.fromSeat) !== myTeam
+        teamOf(pending.fromSeat, seats) !== myTeam
       ) {
         for (const n of ENVIDO_NAMES) {
           if (!out.includes(n)) out.push(n)
@@ -301,7 +304,7 @@ export function startGame(
   }
 
   function allLegal(): string[][] {
-    return Array.from({ length: SEAT_COUNT }, (_, s) => legalFor(s))
+    return Array.from({ length: seats }, (_, s) => legalFor(s))
   }
 
   function buildPub(): Pub {
@@ -327,6 +330,7 @@ export function startGame(
       log,
       winnerTeam,
       seatsFilled: seatsFilled(),
+      seatCount: seats,
       legal: allLegal(),
       reveal: phase === 'between' || phase === 'done' ? reveal.map((r) => ({
         seat: r.seat,
@@ -337,6 +341,7 @@ export function startGame(
   }
 
   function applyPub(pub: Pub) {
+    if (pub.seatCount === 2 || pub.seatCount === 4) seats = pub.seatCount as 2 | 4
     lastPub = pub
     refreshUi()
   }
@@ -370,7 +375,7 @@ export function startGame(
     reveal = []
     handPoints = 1
     envidoDone = false
-    playedCard = Array.from({ length: SEAT_COUNT }, () => false)
+    playedCard = Array.from({ length: MAX_SEATS }, () => false)
     trucoLadder = []
     trucoLastTeam = -1
     winnerTeam = winnerTeam
@@ -378,21 +383,21 @@ export function startGame(
 
   function deal() {
     if (!isHost || !hostHands) return
-    if (seatsFilled() < SEAT_COUNT || winnerTeam !== null) return
+    if (seatsFilled() < seats || winnerTeam !== null) return
     dealGen += 1
     resetHandVars()
-    for (let s = 0; s < SEAT_COUNT; s++) hostHands[s] = []
+    for (let s = 0; s < seats; s++) hostHands[s] = []
     const deck = shuffle(makeDeck())
     let i = 0
     for (let r = 0; r < 3; r++) {
-      for (let s = 0; s < SEAT_COUNT; s++) {
-        const seat = (mano + s) % SEAT_COUNT
+      for (let s = 0; s < seats; s++) {
+        const seat = (mano + s) % seats
         hostHands[seat]!.push(deck[i]!)
         i += 1
       }
     }
     myHand = hostHands[0]!
-    for (let s = 1; s < SEAT_COUNT; s++) sendHandTo(s)
+    for (let s = 1; s < seats; s++) sendHandTo(s)
     turn = mano
     phase = 'play'
     log = `Dealt. Mano P${mano}. Dealer (pie) P${dealer}.`
@@ -404,8 +409,8 @@ export function startGame(
     const gen = dealGen
     window.setTimeout(() => {
       if (gen !== dealGen || winnerTeam !== null) return
-      dealer = nextSeat(dealer)
-      mano = nextSeat(dealer)
+      dealer = nextSeat(dealer, seats)
+      mano = nextSeat(dealer, seats)
       deal()
     }, 2800)
   }
@@ -444,8 +449,8 @@ export function startGame(
     let bestSeat = mano
     let bestPts = -1
     let bestCards: Card[] = []
-    for (let i = 0; i < SEAT_COUNT; i++) {
-      const s = (mano + i) % SEAT_COUNT
+    for (let i = 0; i < seats; i++) {
+      const s = (mano + i) % seats
       const ev = envidoOf(hostHands ? hostHands[s]! : [])
       if (ev.points > bestPts) {
         bestPts = ev.points
@@ -474,7 +479,7 @@ export function startGame(
       () => ({ rank: -1, seat: -1 }),
     )
     for (const p of trick) {
-      const t = teamOf(p.seat)
+      const t = teamOf(p.seat, seats)
       const r = trucoRank(p.card)
       if (r > teamBest[t]!.rank) teamBest[t] = { rank: r, seat: p.seat }
     }
@@ -526,12 +531,12 @@ export function startGame(
       const b = w[1]
       const c = w[2]
       if (a === 'parda' && b === 'parda') {
-        if (c === 'parda') return teamOf(mano)
+        if (c === 'parda') return teamOf(mano, seats)
         return c as number
       }
       if (c === 'parda') {
         if (a !== 'parda') return a as number
-        return teamOf(mano)
+        return teamOf(mano, seats)
       }
       return c as number
     }
@@ -549,9 +554,9 @@ export function startGame(
     trick.push({ seat, card })
     playedCard[seat] = true
     log = `P${seat} plays ${cardLabel(card)}.`
-    if (trick.length >= SEAT_COUNT) resolveTrick()
+    if (trick.length >= seats) resolveTrick()
     else {
-      turn = nextSeat(turn)
+      turn = nextSeat(turn, seats)
       phase = 'play'
       broadcast()
     }
@@ -571,8 +576,8 @@ export function startGame(
       pending = {
         kind: 'envido',
         fromSeat: seat,
-        want: envidoWant(ladder, scores, teamOf(seat)),
-        no: envidoNo(ladder, scores, teamOf(seat)),
+        want: envidoWant(ladder, scores, teamOf(seat, seats)),
+        no: envidoNo(ladder, scores, teamOf(seat, seats)),
         ladder,
       }
       lastChant = name
@@ -594,7 +599,7 @@ export function startGame(
       no: trucoNo(ladder),
       ladder,
     }
-    trucoLastTeam = teamOf(seat)
+    trucoLastTeam = teamOf(seat, seats)
     lastChant = name
     phase = 'pending'
     log = `P${seat}: ${chantLabel(name)} (${pending.want}/${pending.no}).`
@@ -608,7 +613,7 @@ export function startGame(
       const want = pending.want
       envidoDone = true
       const best = envidoBest()
-      const team = teamOf(best.seat)
+      const team = teamOf(best.seat, seats)
       reveal = [{ seat: best.seat, cards: best.cards }]
       pending = null
       const over = award(
@@ -623,7 +628,7 @@ export function startGame(
     }
     handPoints = pending.want
     trucoLadder = pending.ladder.slice()
-    trucoLastTeam = teamOf(pending.fromSeat)
+    trucoLastTeam = teamOf(pending.fromSeat, seats)
     pending = null
     phase = 'play'
     log = `P${seat}: Quiero. Hand is worth ${handPoints}.`
@@ -634,7 +639,7 @@ export function startGame(
     if (!isHost || !pending) return
     if (!legalFor(seat).includes('no')) return
     const from = pending.fromSeat
-    const team = teamOf(from)
+    const team = teamOf(from, seats)
     const pts = pending.no
     const kind = pending.kind
     pending = null
@@ -667,7 +672,7 @@ export function startGame(
   }
 
   function assignSeat(peerId: string): number | null {
-    for (let s = 1; s < SEAT_COUNT; s++) {
+    for (let s = 1; s < seats; s++) {
       if (!peerOfSeat[s]) {
         peerOfSeat[s] = peerId
         seatOfPeer.set(peerId, s)
@@ -685,22 +690,24 @@ export function startGame(
     if (seat === undefined) {
       const assigned = assignSeat(peerId)
       if (assigned === null) {
+        void cfgAction.send({ n: seats }, { target: peerId })
         log = `Spectator joined (${peers.size} peers). Table is full.`
         broadcast()
         return
       }
       seat = assigned
     }
+    void cfgAction.send({ n: seats }, { target: peerId })
     void helloAction.send({ seat }, { target: peerId })
     if (hostHands && hostHands[seat] && hostHands[seat]!.length > 0) {
       sendHandTo(seat)
     }
-    if (seatsFilled() >= SEAT_COUNT && phase === 'wait') {
+    if (seatsFilled() >= seats && phase === 'wait') {
       dealer = 0
-      mano = nextSeat(dealer)
+      mano = nextSeat(dealer, seats)
       deal()
     } else {
-      log = `Waiting for 4 players (${seatsFilled()}/${SEAT_COUNT}).`
+      log = `Waiting ${seatsFilled()}/${seats}`
       broadcast()
     }
   }
@@ -724,6 +731,11 @@ export function startGame(
         broadcast()
       }
     }
+  }
+
+  cfgAction.onMessage = (data) => {
+    if (isHost || !data) return
+    if (data.n === 2 || data.n === 4) seats = data.n
   }
 
   helloAction.onMessage = (data) => {
@@ -784,7 +796,7 @@ export function startGame(
       else if (pub.winnerTeam !== null) turnEl.textContent = `match over (team ${pub.winnerTeam})`
       else if (pub.pending) {
         turnEl.textContent = `${chantLabel(pub.pending.ladder[pub.pending.ladder.length - 1] || pub.lastChant)} — respond`
-      } else if (pub.phase === 'wait') turnEl.textContent = `waiting ${pub.seatsFilled}/${SEAT_COUNT}`
+      } else if (pub.phase === 'wait') turnEl.textContent = `waiting ${pub.seatsFilled}/${pub.seatCount || seats}`
       else if (pub.turn === mySeat) turnEl.textContent = 'your turn'
       else turnEl.textContent = `P${pub.turn}`
     }
@@ -792,7 +804,7 @@ export function startGame(
       if (!pub) scoreEl.textContent = '—'
       else if (mySeat < 0) scoreEl.textContent = `${pub.scores[0] ?? 0}–${pub.scores[1] ?? 0}`
       else {
-        const us = teamOf(mySeat)
+        const us = teamOf(mySeat, seats)
         const them = (us + 1) % TEAM_COUNT
         scoreEl.textContent = `US ${pub.scores[us] ?? 0}  THEM ${pub.scores[them] ?? 0}`
       }
@@ -821,7 +833,9 @@ export function startGame(
 
   function visOf(seat: number): number {
     const origin = mySeat < 0 ? 0 : mySeat
-    return (seat - origin + SEAT_COUNT) % SEAT_COUNT
+    const rel = (seat - origin + seats) % seats
+    if (seats === 2) return rel === 0 ? 0 : 2
+    return rel
   }
 
   function seatAnchor(vis: number): { x: number; y: number } {
@@ -925,7 +939,7 @@ export function startGame(
     })
 
     if (pub) {
-      const us = origin < 0 ? 0 : teamOf(origin)
+      const us = origin < 0 ? 0 : teamOf(origin, seats)
       const them = (us + 1) % TEAM_COUNT
       const usScore = pub.scores[us] ?? 0
       const themScore = pub.scores[them] ?? 0
@@ -953,8 +967,8 @@ export function startGame(
       })
     }
 
-    const leftCounts = pub ? pub.cardsLeft : zeros(SEAT_COUNT)
-    for (let seat = 0; seat < SEAT_COUNT; seat++) {
+    const leftCounts = pub ? pub.cardsLeft : zeros(seats)
+    for (let seat = 0; seat < seats; seat++) {
       const vis = visOf(seat)
       const a = seatAnchor(vis)
       const you = seat === mySeat
