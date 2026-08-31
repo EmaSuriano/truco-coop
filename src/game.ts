@@ -55,6 +55,8 @@ type Pub = {
   legal: string[][]
   reveal: Reveal[]
   handPoints: number
+  sfx?: string
+  sfxN?: number
 }
 
 type HelloMsg = { seat: number }
@@ -207,8 +209,62 @@ export function startGame(
       k.loadSprite(`card-${suit}-${rank}`, publicUrl(`cards/${suit}-${rank}.png`))
     }
   }
+  const soundOk = new Set<string>()
+  let bgmStarted = false
+  let sfxName = ''
+  let sfxN = 0
+  let seenSfxN = 0
+
+  function playSfx(name: string) {
+    if (!name || name === 'bgm' || !soundOk.has(name)) return
+    try {
+      k.play(name, { volume: 0.7 })
+    } catch {
+      /* mute-safe */
+    }
+  }
+
+  function startBgm() {
+    if (bgmStarted || !soundOk.has('bgm')) return
+    bgmStarted = true
+    try {
+      k.play('bgm', { loop: true, volume: 0.18 })
+    } catch {
+      bgmStarted = false
+    }
+  }
+
+  function cue(name: string) {
+    sfxName = name
+    sfxN += 1
+    playSfx(name)
+  }
+
   k.onLoad(() => {
     artReady = true
+    const files: [string, string][] = [
+      ['bgm', 'bgm-loop.ogg'],
+      ['deal', 'sfx-deal.ogg'],
+      ['play', 'sfx-play-card.ogg'],
+      ['chant', 'sfx-chant.ogg'],
+      ['want', 'sfx-want.ogg'],
+      ['no', 'sfx-no-quiero.ogg'],
+      ['win-hand', 'sfx-win-hand.ogg'],
+      ['win-match', 'sfx-win-match.ogg'],
+    ]
+    for (const [name, file] of files) {
+      const url = publicUrl('audio/' + file)
+      void fetch(url)
+        .then((res) => {
+          if (!res.ok) return
+          k.loadSound(name, url)
+          window.setTimeout(() => {
+            soundOk.add(name)
+            if (name === 'bgm') startBgm()
+          }, 350)
+        })
+        .catch(() => {})
+    }
   })
 
   const helloAction = room.makeAction<HelloMsg>('hello')
@@ -354,11 +410,17 @@ export function startGame(
         cards: r.cards.map((c) => ({ suit: c.suit, rank: c.rank })),
       })) : [],
       handPoints,
+      sfx: sfxName,
+      sfxN,
     }
   }
 
   function applyPub(pub: Pub) {
     if (pub.seatCount === 2 || pub.seatCount === 4) seats = pub.seatCount as 2 | 4
+    if (!isHost && pub.sfx && pub.sfxN && pub.sfxN !== seenSfxN) {
+      seenSfxN = pub.sfxN
+      playSfx(pub.sfx)
+    }
     lastPub = pub
     refreshUi()
   }
@@ -418,6 +480,7 @@ export function startGame(
     turn = mano
     phase = 'play'
     log = `Dealt. Mano P${mano}. Dealer (pie) P${dealer}.`
+    cue('deal')
     broadcast()
   }
 
@@ -438,6 +501,7 @@ export function startGame(
     pending = null
     heldTruco = null
     log = `Team ${team} wins the match (${scores[0]}–${scores[1]}).`
+    cue('win-match')
     broadcast()
   }
 
@@ -457,6 +521,7 @@ export function startGame(
     heldTruco = null
     const over = award(team, pts, why)
     if (!over) {
+      cue('win-hand')
       broadcast()
       scheduleNextHand()
     }
@@ -571,6 +636,7 @@ export function startGame(
     trick.push({ seat, card })
     playedCard[seat] = true
     log = `P${seat} plays ${cardLabel(card)}.`
+    cue('play')
     if (trick.length >= seats) resolveTrick()
     else {
       turn = nextSeat(turn, seats)
@@ -600,6 +666,7 @@ export function startGame(
       lastChant = name
       phase = 'pending'
       log = `P${seat}: ${chantLabel(name)} (${pending.want}/${pending.no}).`
+      cue('chant')
       broadcast()
       return
     }
@@ -620,6 +687,7 @@ export function startGame(
     lastChant = name
     phase = 'pending'
     log = `P${seat}: ${chantLabel(name)} (${pending.want}/${pending.no}).`
+    cue('chant')
     broadcast()
   }
 
@@ -633,6 +701,7 @@ export function startGame(
       const team = teamOf(best.seat, seats)
       reveal = [{ seat: best.seat, cards: best.cards }]
       pending = null
+      cue('want')
       const over = award(
         team,
         want,
@@ -649,6 +718,7 @@ export function startGame(
     pending = null
     phase = 'play'
     log = `P${seat}: Quiero. Hand is worth ${handPoints}.`
+    cue('want')
     broadcast()
   }
 
@@ -660,6 +730,7 @@ export function startGame(
     const pts = pending.no
     const kind = pending.kind
     pending = null
+    cue('no')
     if (kind === 'envido') {
       envidoDone = true
       const over = award(team, pts, `P${seat}: No quiero. Team ${team} +${pts} (envido).`)
