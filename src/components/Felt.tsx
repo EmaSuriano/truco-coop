@@ -441,21 +441,18 @@ export function Felt({ view, onPlay }: { view: ViewState; onPlay: (i: number) =>
       const you = seat === me
       const isActor = actor === seat
       const offline = !!pub.disconnected?.[seat]
-      const roles: string[] = []
-      if (seat === pub.dealer) roles.push('pie')
-      if (seat === pub.mano) roles.push('mano')
-      if (offline) roles.push(t('seatOffline'))
-      const name = you ? `${t('you')} P${seat}` : `P${seat}`
       const tagY = vis === 0 ? a.y + 8 : a.y - 46
-      seatsUi.push(
-        <div
-          key={'tag' + seat}
-          className={'seat-tag' + (you ? ' you' : '') + (isActor ? ' actor' : '') + (offline ? ' offline' : '')}
-          style={{ left: a.x, top: tagY }}
-        >
-          {name + (roles.length ? ' · ' + roles.join(' · ') : '')}
-        </div>,
-      )
+      if (you || offline) {
+        seatsUi.push(
+          <div
+            key={'tag' + seat}
+            className={'seat-tag' + (you ? ' you' : '') + (isActor ? ' actor' : '') + (offline ? ' offline' : '')}
+            style={{ left: a.x, top: tagY }}
+          >
+            {you ? t('you') : t('seatOffline')}
+          </div>,
+        )
+      }
       if (isActor) {
         seatsUi.push(
           <div key={'badge' + seat} className="seat-badge" style={{ left: a.x, top: tagY - 22 }}>
@@ -472,6 +469,12 @@ export function Felt({ view, onPlay }: { view: ViewState; onPlay: (i: number) =>
       ref={feltScope}
       style={{ backgroundImage: `url("${publicUrl('ui/table-felt.png')}")` }}
     >
+      <img
+        id="tableFrame"
+        alt=""
+        aria-hidden="true"
+        src={publicUrl('ui/table-frame.png')}
+      />
       <div id="tableLog">{banner}</div>
       <div id="seatLayer">{seatsUi}</div>
       <div id="cardLayer">

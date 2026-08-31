@@ -1,12 +1,12 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { startGame } from './game'
 import type { GameStore } from './game'
 import { connectRoom, genCode, shareLink } from './net'
 import { useGame, useLocale } from './hooks'
 import { t } from './i18n'
+import { publicUrl } from './url'
 import { LangSwitch } from './components/LangSwitch'
 import { Lobby } from './components/Lobby'
-import { Hud } from './components/Hud'
 import { ScoreBoard } from './components/ScoreBoard'
 import { ChantBar } from './components/ChantBar'
 import { Felt } from './components/Felt'
@@ -33,14 +33,41 @@ function HostGoneOverlay() {
   )
 }
 
+function applySalonArt() {
+  const root = document.documentElement
+  root.style.setProperty('--salon-bg', `url("${publicUrl('ui/salon-bg.png')}")`)
+  root.style.setProperty('--plaque-score', `url("${publicUrl('ui/plaque-score.png')}")`)
+  root.style.setProperty('--chant-idle', `url("${publicUrl('ui/button-chant.png')}")`)
+  root.style.setProperty('--chant-pressed', `url("${publicUrl('ui/button-chant-pressed.png')}")`)
+  root.style.setProperty('--chant-disabled', `url("${publicUrl('ui/button-chant-disabled.png')}")`)
+}
+
 function Table({ store }: { store: GameStore }) {
   const view = useGame(store)
+  const stageRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const el = stageRef.current
+    if (!el) return
+    const apply = () => {
+      const w = el.clientWidth
+      if (w > 0) el.style.setProperty('--table-scale', String(w / 960))
+    }
+    apply()
+    const ro = new ResizeObserver(apply)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+
   return (
     <div id="gameWrap">
-      <Hud view={view} />
-      <ScoreBoard view={view} />
-      <Felt view={view} onPlay={(i) => store.dispatch({ t: 'play', i })} />
-      <ChantBar view={view} dispatch={(act) => store.dispatch(act)} />
+      <div id="tableStage" ref={stageRef}>
+        <div id="feltScale">
+          <Felt view={view} onPlay={(i) => store.dispatch({ t: 'play', i })} />
+        </div>
+        <ScoreBoard view={view} />
+        <ChantBar view={view} dispatch={(act) => store.dispatch(act)} />
+      </div>
       {view.hostGone && !view.isHost ? <HostGoneOverlay /> : null}
     </div>
   )
@@ -48,6 +75,9 @@ function Table({ store }: { store: GameStore }) {
 
 export function App() {
   useLocale()
+  useEffect(() => {
+    applySalonArt()
+  }, [])
   const params = new URLSearchParams(location.search)
   const roomParam = params.get('room')
   const isHost = !roomParam
@@ -113,4 +143,3 @@ export function App() {
     </>
   )
 }
-

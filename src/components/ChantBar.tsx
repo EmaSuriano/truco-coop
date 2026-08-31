@@ -45,25 +45,24 @@ export function ChantBar({ view, dispatch }: { view: ViewState; dispatch: (act: 
   return (
     <div id="chantBar">
       <img className="chantFlourish" alt="" aria-hidden="true" src={publicUrl('ui/button-ornament.png')} />
-      <div id="actionHint">{hint}</div>
       {BUTTONS.map((b) => {
         const enabled = legal.includes(b.name)
         return (
           <motion.button
             key={b.name}
             type="button"
+            className="chantBtn"
             disabled={!enabled}
             onClick={() => click(b.name)}
             whileHover={enabled ? { y: -1 } : undefined}
-            whileTap={
-              enabled ? { scale: 0.96, boxShadow: '0 0 22px #e0b84a' } : undefined
-            }
+            whileTap={enabled ? { scale: 0.97 } : undefined}
             transition={PRESS}
           >
             {b.label}
           </motion.button>
         )
       })}
+      <div id="actionHint">{hint}</div>
     </div>
   )
 }
