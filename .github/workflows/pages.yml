@@ -30,7 +30,7 @@ jobs:
           npm run typecheck
           npm run build
         env:
-          VITE_BASE: /kaplay-coop-starter/
+          VITE_BASE: /truco-coop/
 
       - name: Deploy to GitHub Pages
         uses: JamesIves/github-pages-deploy-action@v4

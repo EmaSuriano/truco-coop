@@ -2,15 +2,15 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Kaplay Coop Starter</title>
+<title>Truco Coop</title>
 <link rel="stylesheet" href="/src/style.css">
 </head>
 <body>
 
 <div id="overlay">
   <div id="card">
-    <h1>Kaplay Coop</h1>
-    <p class="sub">Peer-to-peer starter. Host a room, share the link.</p>
+    <h1>Truco Coop</h1>
+    <p class="sub">4-player Argentine Truco. Host a room, share the link.</p>
 
     <div class="row">
       <button class="primary" id="hostBtn">Create Room</button>
@@ -30,10 +30,24 @@
 
 <div id="gameWrap">
   <div id="hud">
-    <span class="you">■ YOU</span> — WASD / Arrows to move &nbsp;|&nbsp;
+    <span class="you">■ YOU</span>
+    cards: <span id="hudHand">—</span>
+    &nbsp;|&nbsp; turn: <span id="hudTurn">—</span>
+    &nbsp;|&nbsp; score: <span id="hudScore">—</span>
+    &nbsp;|&nbsp;
     <span class="peer">■ PEERS</span> connected: <span id="peerCount">0</span>
   </div>
   <canvas id="gameCanvas"></canvas>
+  <div id="chantBar">
+    <button id="btnEnvido" disabled>Envido</button>
+    <button id="btnReal" disabled>Real Envido</button>
+    <button id="btnFalta" disabled>Falta</button>
+    <button id="btnTruco" disabled>Truco</button>
+    <button id="btnRetruco" disabled>Retruco</button>
+    <button id="btnVale" disabled>Vale cuatro</button>
+    <button id="btnQuiero" disabled>Quiero</button>
+    <button id="btnNo" disabled>No quiero</button>
+  </div>
 </div>
 
 <script type="module" src="/src/main.ts"></script>

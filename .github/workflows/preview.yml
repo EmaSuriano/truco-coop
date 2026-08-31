@@ -34,7 +34,7 @@ jobs:
           npm run typecheck
           npm run build
         env:
-          VITE_BASE: /kaplay-coop-starter/pr-preview/pr-${{ github.event.number }}/
+          VITE_BASE: /truco-coop/pr-preview/pr-${{ github.event.number }}/
 
       - name: Deploy preview
         uses: rossjrw/pr-preview-action@v1

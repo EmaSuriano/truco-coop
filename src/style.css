@@ -102,3 +102,15 @@
   #hud span.you { color: var(--accent); }
   #hud span.peer { color: var(--accent2); }
   canvas { image-rendering: pixelated; }
+
+  #chantBar {
+    position: fixed; bottom: 8px; left: 0; right: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    justify-content: center;
+    padding: 8px 10px;
+    z-index: 6;
+  }
+  #chantBar button { padding: 8px 10px; font-size: 11px; }
+  #hud { max-width: 940px; line-height: 1.5; }

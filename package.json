@@ -1,10 +1,10 @@
 {
-  "name": "kaplay-coop-starter",
+  "name": "truco-coop",
   "private": true,
   "type": "module",
-  "description": "Vite + TypeScript starter for peer-to-peer coop games with Kaplay and Trystero (MQTT signaling).",
-  "homepage": "https://emasuriano.github.io/kaplay-coop-starter/",
-  "keywords": ["kaplay", "trystero", "webrtc", "coop", "multiplayer", "vite", "typescript", "p2p"],
+  "description": "4-player Argentine Truco over peer-to-peer (Kaplay + Trystero). No Flor, 30-point chico.",
+  "homepage": "https://emasuriano.github.io/truco-coop/",
+  "keywords": ["truco", "argentina", "kaplay", "trystero", "webrtc", "coop", "multiplayer", "vite", "typescript", "p2p"],
   "license": "MIT",
   "scripts": {
     "dev": "vite",
