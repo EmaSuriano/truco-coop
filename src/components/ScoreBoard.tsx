@@ -35,20 +35,24 @@ export function ScoreBoard({ view }: { view: ViewState }) {
   return (
     <div id="scoreBoard">
       <div className="scoreField">
-        <div className="scoreCol">
-          <div className="scoreName">{t('us')}</div>
-          <div className="scoreNum">
-            <span>{usScore}</span>
-            <span className="scoreCap">/{cap}</span>
+        <div className="scoreRow">
+          <div className="scoreCol">
+            <div className="scoreName">{t('us')}</div>
+            <div className="scoreNum">
+              <span>{usScore}</span>
+              <span className="scoreCap">/{cap}</span>
+            </div>
+          </div>
+          <div className="scoreCol them">
+            <div className="scoreName">{t('them')}</div>
+            <div className="scoreNum">
+              <span>{themScore}</span>
+              <span className="scoreCap">/{cap}</span>
+            </div>
           </div>
         </div>
-        <div id="turnBanner">{turnText}</div>
-        <div className="scoreCol them">
-          <div className="scoreName">{t('them')}</div>
-          <div className="scoreNum">
-            <span>{themScore}</span>
-            <span className="scoreCap">/{cap}</span>
-          </div>
+        <div id="turnBanner" className={turnText === t('yourTurn') ? 'yours' : undefined}>
+          {turnText}
         </div>
       </div>
     </div>

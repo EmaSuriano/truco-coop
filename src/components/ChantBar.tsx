@@ -51,7 +51,7 @@ export function ChantBar({ view, dispatch }: { view: ViewState; dispatch: (act: 
           <motion.button
             key={b.name}
             type="button"
-            className="chantBtn"
+            className={'chantBtn' + (b.name === 'real' || b.name === 'vale' ? ' long' : '')}
             disabled={!enabled}
             onClick={() => click(b.name)}
             whileHover={enabled ? { y: -1 } : undefined}

@@ -1,13 +1,12 @@
 :root {
-    --bg: #0a0506;
-    --panel: #2a0c12;
-    --ink: #f3ead3;
-    --dim: #c4a574;
-    --accent: #e0b84a;
-    --accent2: #f2d48a;
+    --bg: #2E2910;
+    --felt: #2C5745;
+    --ink: #EBE3A7;
+    --accent: #EB7D00;
+    --panel: #3d3616;
+    --dim: #c4bb7a;
+    --border: #a89d62;
     --danger: #c0392b;
-    --border: #8a6a2a;
-    --burgundy: #6b1520;
   }
   * { box-sizing: border-box; }
   html, body, #root {
@@ -26,7 +25,7 @@
   #overlay {
     position: fixed; inset: 0;
     display: flex; align-items: center; justify-content: center;
-    background: rgba(10, 5, 6, 0.32);
+    background: rgba(46, 41, 16, 0.32);
     z-index: 10;
   }
   #card {
@@ -54,7 +53,7 @@
   #card h1 {
     font-size: 15px;
     letter-spacing: 2px;
-    color: var(--accent);
+    color: var(--ink);
     margin: 0 0 4px 0;
     text-transform: uppercase;
     text-align: center;
@@ -80,14 +79,14 @@
     font-size: 12px; color: var(--ink); text-transform: none; letter-spacing: 0;
     margin: 0; cursor: pointer;
     border: 1px solid var(--border); padding: 8px 10px; flex: 1;
-    background: #1a070a;
+    background: var(--bg);
   }
-  .choiceOpt:has(input:checked) { border-color: var(--accent); color: var(--accent); }
+  .choiceOpt:has(input:checked) { border-color: var(--accent); color: var(--ink); }
   .choiceOpt input { margin: 0; }
   label { display: block; font-size: 11px; color: var(--dim); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 1px; }
   input[type=text] {
     width: 100%;
-    background: #1a070a;
+    background: var(--bg);
     border: 1px solid var(--border);
     color: var(--ink);
     padding: 8px 10px;
@@ -102,25 +101,25 @@
     text-transform: uppercase;
     padding: 10px 14px;
     border: 1px solid var(--border);
-    background: #1a070a;
+    background: var(--bg);
     color: var(--ink);
     cursor: pointer;
   }
-  button:hover { border-color: var(--accent); color: var(--accent); }
+  button:hover { border-color: var(--accent); color: var(--ink); }
   button.primary {
-    background: var(--burgundy);
-    color: var(--accent);
+    background: var(--felt);
+    color: var(--ink);
     border-color: var(--accent);
     width: 100%;
     font-weight: bold;
   }
-  button.primary:hover { background: #8a1c28; color: var(--accent2); }
+  button.primary:hover { background: var(--felt); color: var(--ink); border-color: var(--accent); filter: brightness(1.08); }
   button:disabled {
     opacity: 0.45;
     cursor: not-allowed;
   }
-  button:disabled:hover { border-color: var(--border); color: var(--ink); }
-  button.primary:disabled:hover { background: var(--burgundy); color: var(--accent); border-color: var(--accent); }
+  button:disabled:hover { border-color: var(--border); color: var(--ink); filter: none; }
+  button.primary:disabled:hover { background: var(--felt); color: var(--ink); border-color: var(--accent); }
   #linkRow { display: none; margin-top: 6px; }
   #linkRow.show { display: block; }
   #linkBox {
@@ -157,7 +156,7 @@
     height: 540px;
     position: relative;
     overflow: hidden;
-    background-color: #4a1218;
+    background-color: var(--felt);
     background-size: cover;
     background-position: center;
   }
@@ -175,32 +174,46 @@
     left: 50%;
     top: 128px;
     transform: translateX(-50%);
-    color: #f2b84b;
+    color: var(--ink);
     font-size: 14px;
     text-align: center;
     pointer-events: none;
     z-index: 6;
     max-width: 70%;
     text-shadow: 0 1px 2px #0008;
+    background: rgba(46, 41, 16, 0.82);
+    padding: 6px 14px;
+    border-radius: 6px;
+  }
+  #tableLog:empty {
+    background: transparent;
+    padding: 0;
   }
   #trickMeta {
     position: absolute;
     left: 50%;
     bottom: 64px;
     transform: translateX(-50%);
-    color: #c4a574;
+    color: var(--ink);
     font-size: 11px;
     pointer-events: none;
     z-index: 6;
     letter-spacing: 1px;
+    background: rgba(46, 41, 16, 0.82);
+    padding: 6px 14px;
+    border-radius: 6px;
+    text-shadow: 0 1px 2px #0008;
   }
-  #seatLayer, #cardLayer {
+  #trickMeta:empty {
+    background: transparent;
+    padding: 0;
+  }
+  #cardLayer {
     position: absolute;
     inset: 0;
     pointer-events: none;
-    z-index: 5;
+    z-index: 7;
   }
-  #cardLayer { z-index: 7; }
 
   #scoreBoard {
     position: absolute;
@@ -223,28 +236,37 @@
   }
   .scoreField {
     display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 56%;
+    padding: 14px 12px 10px;
+    gap: 4px;
+    box-sizing: border-box;
+  }
+  .scoreRow {
+    display: flex;
     align-items: center;
     justify-content: space-between;
-    width: 68%;
-    height: 58%;
-    gap: 8px;
+    width: 100%;
+    gap: 16px;
   }
-  .scoreCol { text-align: center; min-width: 64px; }
-  .scoreCol.them .scoreName { color: var(--accent2); }
-  .scoreName { font-size: 11px; letter-spacing: 2px; color: var(--accent); }
+  .scoreCol { text-align: center; min-width: 0; flex: 1; }
+  .scoreName { font-size: 11px; letter-spacing: 2px; color: var(--ink); }
   .scoreNum { font-size: 28px; line-height: 1; color: var(--ink); font-weight: bold; }
   .scoreCap { font-size: 14px; color: var(--dim); margin-left: 2px; }
   #turnBanner {
-    flex: 1;
+    width: 100%;
     text-align: center;
     font-size: 13px;
     letter-spacing: 1px;
-    color: var(--accent2);
+    color: var(--ink);
     font-weight: bold;
     text-transform: uppercase;
     line-height: 1.2;
-    padding: 0 6px;
+    padding: 2px 6px 0;
   }
+  #turnBanner.yours { color: var(--accent); }
 
   #chantBar {
     position: absolute;
@@ -270,25 +292,30 @@
   }
   #chantBar button.chantBtn,
   #chantBar button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
     background-color: transparent;
     background-image: var(--chant-idle);
     background-size: 100% 100%;
     background-repeat: no-repeat;
     background-position: center;
     border: none;
-    color: var(--accent2);
+    color: var(--accent);
     min-width: 104px;
     height: 36px;
-    padding: 6px 12px 10px;
+    padding: 0 18px;
     font-size: 12px;
     font-weight: bold;
+    line-height: 1;
+    text-align: center;
     text-shadow: 0 1px 2px #000a;
     box-shadow: none;
   }
   #chantBar button:hover:not(:disabled) {
     background-color: transparent;
     background-image: var(--chant-idle);
-    color: var(--accent2);
+    color: var(--accent);
     filter: brightness(1.08);
     border: none;
   }
@@ -298,8 +325,8 @@
   }
   #chantBar button:disabled,
   #chantBar button:disabled:hover {
-    opacity: 1;
-    color: #d4c09a;
+    opacity: 0.65;
+    color: var(--dim);
     background-color: transparent;
     background-image: var(--chant-disabled);
     border: none;
@@ -307,21 +334,38 @@
   }
   #chantBar button:not(:disabled) {
     font-size: 12px;
-    padding: 6px 12px 10px;
+    padding: 0 18px;
     font-weight: bold;
     box-shadow: none;
     background-color: transparent;
-    color: var(--accent2);
+    color: var(--accent);
+  }
+  #chantBar button.chantBtn.long {
+    min-width: 138px;
+    padding: 0 18px;
+    letter-spacing: 0.4px;
   }
   #actionHint {
     flex-basis: 100%;
     text-align: center;
     font-size: 12px;
-    color: var(--accent);
+    color: var(--ink);
     letter-spacing: 1px;
     min-height: 14px;
     text-transform: uppercase;
     text-shadow: 0 1px 2px #0008;
+    background: rgba(46, 41, 16, 0.82);
+    padding: 6px 14px;
+    border-radius: 6px;
+    box-sizing: border-box;
+    max-width: 70%;
+    margin: 2px auto 0;
+  }
+  #actionHint:empty {
+    background: transparent;
+    padding: 0;
+    min-height: 0;
+    margin: 0;
   }
 
   #langSwitch {
@@ -333,40 +377,11 @@
     text-transform: none; letter-spacing: 0;
   }
   #langSwitch button.on {
-    background: var(--burgundy);
-    color: var(--accent);
+    background: var(--felt);
+    color: var(--ink);
     border-color: var(--accent);
   }
 
-  .seat-tag {
-    position: absolute;
-    transform: translate(-50%, -50%);
-    color: var(--dim);
-    font-size: 11px;
-    white-space: nowrap;
-    pointer-events: none;
-    z-index: 6;
-    letter-spacing: 2px;
-    text-transform: uppercase;
-    text-shadow: 0 1px 2px #000a;
-  }
-  .seat-tag.you { color: var(--accent2); }
-  .seat-tag.actor { color: var(--accent2); }
-  .seat-tag.offline { color: #8a7a6a; opacity: 0.75; }
-  .seat-badge {
-    position: absolute;
-    transform: translate(-50%, -50%);
-    background: #8a1c28;
-    border: 2px solid #e0b84a;
-    border-radius: 6px;
-    color: #f2d48a;
-    font-size: 11px;
-    padding: 2px 10px;
-    pointer-events: none;
-    z-index: 6;
-    letter-spacing: 1px;
-    text-transform: uppercase;
-  }
   .card {
     position: absolute;
     width: 72px;
@@ -426,8 +441,8 @@
   }
   .card.back .card-fallback,
   .card-fallback.is-back {
-    background: #7a1f2b;
-    border-color: #2a1014;
-    color: #f2d48a;
+    background: var(--bg);
+    border-color: var(--felt);
+    color: var(--ink);
   }
   .card-fallback.red { color: #c0392b; }

@@ -3,7 +3,7 @@ import { AnimatePresence, useAnimate } from 'motion/react'
 import { WIDTH, HEIGHT, teamOf } from '../config'
 import type { Card as CardData } from '../deck'
 import { cardId, sameCard } from '../deck'
-import { actorSeat, chantLabel } from '../game'
+import { chantLabel } from '../game'
 import type { ViewState } from '../game'
 import { t } from '../i18n'
 import { useLocale } from '../hooks'
@@ -420,9 +420,6 @@ export function Felt({ view, onPlay }: { view: ViewState; onPlay: (i: number) =>
   }, [view])
 
   const pub = view.lastPub
-  const seats = pub?.seatCount === 4 ? 4 : 2
-  const me = view.mySeat
-  const actor = actorSeat(pub)
   let banner = pub?.log || ''
   if (pub && pub.winnerTeam !== null) banner = t('teamWins', { team: pub.winnerTeam })
   else if (pub?.pending) {
@@ -432,36 +429,6 @@ export function Felt({ view, onPlay }: { view: ViewState; onPlay: (i: number) =>
   const tw = (pub?.trickWins || []).map((x) => (x === 'parda' ? 'P' : `T${x}`)).join(' ')
   const pts = pub?.handPoints ?? 1
   const meta = tw ? `tricks ${tw}   hand ${pts}pt` : `hand ${pts}pt`
-
-  const seatsUi = []
-  if (pub) {
-    for (let seat = 0; seat < seats; seat++) {
-      const vis = visOf(seat, me, seats)
-      const a = seatAnchor(vis)
-      const you = seat === me
-      const isActor = actor === seat
-      const offline = !!pub.disconnected?.[seat]
-      const tagY = vis === 0 ? a.y + 8 : a.y - 46
-      if (you || offline) {
-        seatsUi.push(
-          <div
-            key={'tag' + seat}
-            className={'seat-tag' + (you ? ' you' : '') + (isActor ? ' actor' : '') + (offline ? ' offline' : '')}
-            style={{ left: a.x, top: tagY }}
-          >
-            {you ? t('you') : t('seatOffline')}
-          </div>,
-        )
-      }
-      if (isActor) {
-        seatsUi.push(
-          <div key={'badge' + seat} className="seat-badge" style={{ left: a.x, top: tagY - 22 }}>
-            {pub.pending ? t('answers') : t('plays')}
-          </div>,
-        )
-      }
-    }
-  }
 
   return (
     <div
@@ -476,7 +443,6 @@ export function Felt({ view, onPlay }: { view: ViewState; onPlay: (i: number) =>
         src={publicUrl('ui/table-frame.png')}
       />
       <div id="tableLog">{banner}</div>
-      <div id="seatLayer">{seatsUi}</div>
       <div id="cardLayer">
         <AnimatePresence>
           {cards.map((viz) => (
