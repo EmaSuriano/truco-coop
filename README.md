@@ -31,7 +31,7 @@ The host shuffles and holds every hole card in host memory only. Private hands u
 
 Broadcast pub snapshots have no hole cards. Joiners never store other players hands (no hands array on joiners). Other seats show card-back counts only.
 
-APP_ID is truco-coop in src/config.ts. Leave src/net.ts as-is. Lobby flow in src/main.ts stays.
+APP_ID is truco-coop in src/config.ts. Leave src/net.ts as-is. Lobby flow in src/App.tsx stays. Game rules live in src/game.ts; React subscribes.
 
 ## Rules (v1)
 

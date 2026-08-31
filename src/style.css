@@ -123,7 +123,7 @@
   #status.err { color: var(--danger); }
   .err { color: var(--danger); }
   #gameWrap {
-    display: none;
+    display: flex;
     position: fixed; inset: 0;
     align-items: center; justify-content: center;
     flex-direction: column;
@@ -362,3 +362,5 @@
     80% { transform: translateX(6px); }
   }
   #felt.shake { animation: feltShake .25s; }
+
+  .card.no-trans { transition: none; }

@@ -2,13 +2,12 @@
   "name": "truco-coop",
   "private": true,
   "type": "module",
-  "description": "4-player Argentine Truco over peer-to-peer (HTML+CSS+JS + Trystero). No Flor, 30-point chico.",
+  "description": "Argentine Truco over peer-to-peer (React + TypeScript + Vite + Trystero). No Flor, 30-point chico.",
   "homepage": "https://emasuriano.github.io/truco-coop/",
   "keywords": [
     "truco",
     "argentina",
-    "html",
-    "css",
+    "react",
     "trystero",
     "webrtc",
     "coop",
@@ -25,9 +24,14 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@trystero-p2p/mqtt": "0.25.3"
+    "@trystero-p2p/mqtt": "0.25.3",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
   },
   "devDependencies": {
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.5",
+    "@vitejs/plugin-react": "^4.7.0",
     "typescript": "~5.8.0",
     "vite": "^6.0.0"
   }
