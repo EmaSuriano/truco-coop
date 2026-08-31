@@ -189,9 +189,26 @@ export function startGame(
     width: WIDTH,
     height: HEIGHT,
     letterbox: true,
-    background: [18, 56, 38],
+    background: [42, 10, 14],
     crisp: true,
     canvas,
+  })
+
+  function publicUrl(path: string): string {
+    const base = import.meta.env.BASE_URL || '/'
+    return `${base.endsWith('/') ? base : `${base}/`}${path.replace(/^\//, '')}`
+  }
+
+  let artReady = false
+  k.loadSprite('felt', publicUrl('ui/table-felt.png'))
+  k.loadSprite('card-back', publicUrl('cards/back.png'))
+  for (const suit of ['espada', 'basto', 'oro', 'copa'] as const) {
+    for (const rank of [1, 2, 3, 4, 5, 6, 7, 10, 11, 12] as const) {
+      k.loadSprite(`card-${suit}-${rank}`, publicUrl(`cards/${suit}-${rank}.png`))
+    }
+  }
+  k.onLoad(() => {
+    artReady = true
   })
 
   const helloAction = room.makeAction<HelloMsg>('hello')
@@ -870,25 +887,28 @@ export function startGame(
     }
   })
 
+  function drawSpriteBox(name: string, x: number, y: number, w: number, h: number): boolean {
+    if (!artReady) return false
+    try {
+      k.drawSprite({ sprite: name, pos: k.vec2(x, y), width: w, height: h })
+      return true
+    } catch {
+      return false
+    }
+  }
+
   function drawFelt() {
+    if (drawSpriteBox('felt', 0, 0, WIDTH, HEIGHT)) return
     k.drawRect({
-      pos: k.vec2(40, 36),
-      width: WIDTH - 80,
-      height: HEIGHT - 96,
-      radius: 48,
-      color: hexColor('#165c3a'),
-      outline: { width: 6, color: hexColor('#0c3a24') },
-    })
-    k.drawRect({
-      pos: k.vec2(70, 62),
-      width: WIDTH - 140,
-      height: HEIGHT - 148,
-      radius: 36,
-      color: hexColor('#1a6b44'),
+      pos: k.vec2(0, 0),
+      width: WIDTH,
+      height: HEIGHT,
+      color: hexColor('#4a1218'),
     })
   }
 
   function drawCardFace(x: number, y: number, w: number, h: number, card: Card) {
+    if (drawSpriteBox(`card-${card.suit}-${card.rank}`, x, y, w, h)) return
     k.drawRect({
       pos: k.vec2(x, y),
       width: w,
@@ -908,6 +928,7 @@ export function startGame(
   }
 
   function drawCardBack(x: number, y: number, w: number, h: number) {
+    if (drawSpriteBox('card-back', x, y, w, h)) return
     k.drawRect({
       pos: k.vec2(x, y),
       width: w,
@@ -915,13 +936,6 @@ export function startGame(
       radius: 6,
       color: hexColor('#7a1f2b'),
       outline: { width: 2, color: hexColor('#2a1014') },
-    })
-    k.drawRect({
-      pos: k.vec2(x + 6, y + 6),
-      width: w - 12,
-      height: h - 12,
-      radius: 4,
-      color: hexColor('#9b2c3a'),
     })
   }
 
