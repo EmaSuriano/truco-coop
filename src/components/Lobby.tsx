@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { motion } from 'motion/react'
 import { t } from '../i18n'
 import { useLocale } from '../hooks'
 import { publicUrl } from '../url'
@@ -46,7 +47,12 @@ export function Lobby({
 
   return (
     <div id="overlay">
-      <div id="card">
+      <motion.div
+        id="card"
+        initial={{ opacity: 0, y: 16, scale: 0.98 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        transition={{ type: 'tween', ease: 'easeOut', duration: 0.35 }}
+      >
         <img className="frameCorner tl" alt="" src={corner} />
         <img className="frameCorner tr" alt="" src={corner} />
         <img className="frameCorner bl" alt="" src={corner} />
@@ -148,7 +154,7 @@ export function Lobby({
         <div id="status" className={error || fileHint ? 'err' : ''}>
           {status}
         </div>
-      </div>
+      </motion.div>
     </div>
   )
 }

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { AnimatePresence, useAnimate } from 'motion/react'
 import { WIDTH, HEIGHT } from '../config'
 import type { Card as CardData } from '../deck'
 import { actorSeat, chantLabel } from '../game'
@@ -64,7 +65,9 @@ function localLegal(view: ViewState): string[] {
 export function Felt({ view, onPlay }: { view: ViewState; onPlay: (i: number) => void }) {
   useLocale()
   const [cards, setCards] = useState<VizCard[]>([])
-  const [shake, setShake] = useState(false)
+  const [feltScope, animateFelt] = useAnimate()
+  const animateFeltRef = useRef(animateFelt)
+  animateFeltRef.current = animateFelt
   const engine = useRef<Engine>({
     hand: [],
     opp: [[], [], [], []],
@@ -85,7 +88,7 @@ export function Felt({ view, onPlay }: { view: ViewState; onPlay: (i: number) =>
 
   function flush() {
     const e = engine.current
-    setCards([...e.hand.filter(Boolean), ...e.opp.flat(), ...e.trick, ...e.reveal])
+    setCards([...e.hand.filter(Boolean), ...e.opp.flat(), ...e.trick, ...e.reveal, ...e.flying])
   }
 
   function makeCard(
@@ -94,6 +97,7 @@ export function Felt({ view, onPlay }: { view: ViewState; onPlay: (i: number) =>
     kind: VizCard['kind'],
     card: CardData | null,
     face: boolean,
+    extra?: Partial<Pick<VizCard, 'fromCenter' | 'fromRotate' | 'duration' | 'yaw'>>,
   ): VizCard {
     engine.current.nid += 1
     return {
@@ -104,8 +108,10 @@ export function Felt({ view, onPlay }: { view: ViewState; onPlay: (i: number) =>
       card,
       face,
       illegal: false,
-      flipMid: false,
-      noTrans: false,
+      fromCenter: extra?.fromCenter ?? false,
+      fromRotate: extra?.fromRotate ?? 0,
+      duration: extra?.duration ?? 0.4,
+      yaw: extra?.yaw ?? 0,
     }
   }
 
@@ -129,19 +135,6 @@ export function Felt({ view, onPlay }: { view: ViewState; onPlay: (i: number) =>
       flush()
     }
 
-    function spawnAtCenterThen(obj: VizCard, dest: { x: number; y: number }) {
-      obj.noTrans = true
-      obj.x = WIDTH / 2
-      obj.y = HEIGHT / 2
-      flush()
-      window.requestAnimationFrame(() => {
-        obj.noTrans = false
-        obj.x = dest.x
-        obj.y = dest.y
-        flush()
-      })
-    }
-
     function runDeal() {
       e.dealGen += 1
       const gen = e.dealGen
@@ -159,20 +152,29 @@ export function Felt({ view, onPlay }: { view: ViewState; onPlay: (i: number) =>
           const delay = n * 80
           const seat = s
           const i = r
+          const fromRotate = ((n % 7) - 3) * 4
           n += 1
           window.setTimeout(() => {
             if (gen !== e.dealGen) return
             if (seat === me && me >= 0) {
               const card = hand[i] || null
               const dest = localRest(i, 3)
-              const obj = makeCard(WIDTH / 2, HEIGHT / 2, 'local', card, !!card)
+              const obj = makeCard(dest.x, dest.y, 'local', card, !!card, {
+                fromCenter: true,
+                fromRotate,
+                duration: 0.4,
+              })
               e.hand[i] = obj
-              spawnAtCenterThen(obj, dest)
+              flush()
             } else {
               const dest = oppRest(seat, i, 3, me, seats)
-              const obj = makeCard(WIDTH / 2, HEIGHT / 2, 'back', null, false)
+              const obj = makeCard(dest.x, dest.y, 'back', null, false, {
+                fromCenter: true,
+                fromRotate,
+                duration: 0.4,
+              })
               e.opp[seat].push(obj)
-              spawnAtCenterThen(obj, dest)
+              flush()
             }
           }, delay)
         }
@@ -198,18 +200,22 @@ export function Felt({ view, onPlay }: { view: ViewState; onPlay: (i: number) =>
           const rest = localRest(i, n)
           o.x = rest.x
           o.y = rest.y
+          o.duration = 0.32
         })
       } else {
         const pile = e.opp[play.seat]
         obj = pile && pile.length ? pile.pop()! : null
       }
       if (!obj) {
-        obj = makeCard(dest.x, dest.y, 'trick', play.card, true)
+        obj = makeCard(dest.x, dest.y, 'trick', play.card, true, { duration: 0.28, yaw: 0 })
       } else {
         obj.kind = 'trick'
         obj.illegal = false
         obj.face = true
         obj.card = play.card
+        obj.fromCenter = false
+        obj.duration = 0.28
+        obj.yaw = play.seat % 2 === 0 ? 6 : -5
       }
       e.trick.push(obj)
       obj.x = dest.x
@@ -230,12 +236,14 @@ export function Felt({ view, onPlay }: { view: ViewState; onPlay: (i: number) =>
       for (const o of moving) {
         o.x = dest.x
         o.y = dest.y
+        o.duration = 0.4
+        o.yaw = o.yaw * 0.4
       }
       flush()
       window.setTimeout(() => {
         if (e.flying === moving) e.flying = []
         flush()
-      }, 420)
+      }, 400)
     }
 
     function flipReveal() {
@@ -247,15 +255,8 @@ export function Felt({ view, onPlay }: { view: ViewState; onPlay: (i: number) =>
         const a = seatAnchor(vis)
         r.cards.forEach((card, i) => {
           const dest = { x: a.x - 20 + i * 44, y: a.y - 90 }
-          const obj = makeCard(dest.x, dest.y, 'reveal', null, false)
-          obj.flipMid = true
+          const obj = makeCard(dest.x, dest.y, 'reveal', card, true, { duration: 0.32 })
           e.reveal.push(obj)
-          window.setTimeout(() => {
-            obj.card = card
-            obj.face = true
-            obj.flipMid = false
-            flush()
-          }, 120)
         })
       }
       flush()
@@ -275,8 +276,14 @@ export function Felt({ view, onPlay }: { view: ViewState; onPlay: (i: number) =>
     if (pub.sfx === 'chant' && typeof pub.sfxN === 'number' && pub.sfxN !== e.lastChantN) {
       e.lastChantN = pub.sfxN
       if (pub.lastChant === 'truco' || pub.lastChant === 'retruco' || pub.lastChant === 'vale') {
-        setShake(false)
-        window.requestAnimationFrame(() => setShake(true))
+        const node = feltScope.current
+        if (node) {
+          void animateFeltRef.current(
+            node,
+            { x: [0, -14, 8, 0] },
+            { duration: 0.2, ease: 'easeOut', type: 'tween' },
+          )
+        }
       }
     }
     if (pub.trick.length > e.prevTrickLen) {
@@ -342,23 +349,24 @@ export function Felt({ view, onPlay }: { view: ViewState; onPlay: (i: number) =>
   return (
     <div
       id="felt"
-      className={shake ? 'shake' : ''}
+      ref={feltScope}
       style={{ backgroundImage: `url("${publicUrl('ui/table-felt.png')}")` }}
-      onAnimationEnd={() => setShake(false)}
     >
       <div id="tableLog">{banner}</div>
       <div id="seatLayer">{seatsUi}</div>
       <div id="cardLayer">
-        {cards.map((viz) => (
-          <CardView
-            key={viz.id}
-            viz={viz}
-            onPlay={(id) => {
-              const idx = engine.current.hand.findIndex((c) => c && c.id === id)
-              if (idx >= 0) onPlayRef.current(idx)
-            }}
-          />
-        ))}
+        <AnimatePresence>
+          {cards.map((viz) => (
+            <CardView
+              key={viz.id}
+              viz={viz}
+              onPlay={(id) => {
+                const idx = engine.current.hand.findIndex((c) => c && c.id === id)
+                if (idx >= 0) onPlayRef.current(idx)
+              }}
+            />
+          ))}
+        </AnimatePresence>
       </div>
       <div id="trickMeta">{meta}</div>
     </div>

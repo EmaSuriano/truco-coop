@@ -1,3 +1,4 @@
+import { motion } from 'motion/react'
 import type { ActName, ActMsg, ViewState } from '../game'
 import { actorSeat } from '../game'
 import { t } from '../i18n'
@@ -14,6 +15,8 @@ const BUTTONS: { name: ActName; label: string }[] = [
   { name: 'quiero', label: 'Quiero' },
   { name: 'no', label: 'No quiero' },
 ]
+
+const PRESS = { type: 'tween' as const, ease: 'easeOut' as const, duration: 0.1 }
 
 function localLegal(view: ViewState): string[] {
   if (view.mySeat < 0) return []
@@ -42,11 +45,24 @@ export function ChantBar({ view, dispatch }: { view: ViewState; dispatch: (act: 
     <div id="chantBar">
       <img className="chantFlourish" alt="" aria-hidden="true" src={publicUrl('ui/button-ornament.png')} />
       <div id="actionHint">{hint}</div>
-      {BUTTONS.map((b) => (
-        <button key={b.name} type="button" disabled={!legal.includes(b.name)} onClick={() => click(b.name)}>
-          {b.label}
-        </button>
-      ))}
+      {BUTTONS.map((b) => {
+        const enabled = legal.includes(b.name)
+        return (
+          <motion.button
+            key={b.name}
+            type="button"
+            disabled={!enabled}
+            onClick={() => click(b.name)}
+            whileHover={enabled ? { y: -1 } : undefined}
+            whileTap={
+              enabled ? { scale: 0.96, boxShadow: '0 0 22px #e0b84a' } : undefined
+            }
+            transition={PRESS}
+          >
+            {b.label}
+          </motion.button>
+        )
+      })}
     </div>
   )
 }
