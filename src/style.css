@@ -300,8 +300,7 @@
     position: absolute;
     width: 72px;
     height: 100px;
-    transform: translate(-50%, -50%);
-    transition: left .32s ease-out, top .32s ease-out, transform .12s ease-out, opacity .2s;
+    perspective: 800px;
     z-index: 5;
     pointer-events: none;
     border-radius: 6px;
@@ -311,7 +310,6 @@
   .card.reveal { width: 40px; height: 56px; z-index: 9; }
   .card.local { pointer-events: auto; z-index: 12; }
   .card.local:not(.illegal):hover {
-    transform: translate(-50%, -50%) translateY(-16px) scale(1.06);
     z-index: 20;
     cursor: pointer;
   }
@@ -320,10 +318,17 @@
     position: relative;
     width: 100%;
     height: 100%;
-    transition: transform .12s ease-in;
-    transform: scaleX(1);
+    transform-style: preserve-3d;
   }
-  .card.flip-mid .card-inner { transform: scaleX(0); }
+  .card-face {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    border-radius: 6px;
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+  }
+  .card-face.rear { transform: rotateY(180deg); }
   .card img {
     width: 100%;
     height: 100%;
@@ -354,13 +359,3 @@
     color: #f2d48a;
   }
   .card-fallback.red { color: #c0392b; }
-  @keyframes feltShake {
-    0%, 100% { transform: translateX(0); }
-    20% { transform: translateX(-8px); }
-    40% { transform: translateX(8px); }
-    60% { transform: translateX(-6px); }
-    80% { transform: translateX(6px); }
-  }
-  #felt.shake { animation: feltShake .25s; }
-
-  .card.no-trans { transition: none; }
