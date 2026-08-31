@@ -175,3 +175,59 @@
     border-color: #5a3a18;
     background: #1a070a;
   }
+
+  #scoreBoard {
+    position: fixed; top: 8px; left: 50%; transform: translateX(-50%);
+    z-index: 8;
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 20px;
+    min-width: min(520px, 92vw);
+    background: #1a070add;
+    border: 1px solid var(--border);
+    padding: 8px 18px 10px;
+  }
+  .scoreCol { text-align: center; min-width: 90px; }
+  .scoreCol.them .scoreName { color: var(--accent2); }
+  .scoreName { font-size: 11px; letter-spacing: 2px; color: var(--accent); }
+  .scoreNum { font-size: 34px; line-height: 1; color: var(--ink); font-weight: bold; }
+  .scoreCap { font-size: 16px; color: var(--dim); margin-left: 2px; }
+  #turnBanner {
+    flex: 1;
+    text-align: center;
+    font-size: 18px;
+    letter-spacing: 1px;
+    color: var(--accent2);
+    font-weight: bold;
+    text-transform: uppercase;
+  }
+  #actionHint {
+    flex-basis: 100%;
+    text-align: center;
+    font-size: 13px;
+    color: var(--accent);
+    letter-spacing: 1px;
+    min-height: 16px;
+    text-transform: uppercase;
+  }
+  #chantBar button:not(:disabled) {
+    font-size: 14px;
+    padding: 12px 16px;
+    font-weight: bold;
+    box-shadow: 0 0 14px #e0b84a99;
+    background: #8a1c28;
+    color: var(--accent2);
+  }
+  #hud { top: auto; bottom: 86px; left: 10px; max-width: 280px; }
+  #langSwitch {
+    position: fixed; top: 10px; right: 10px; z-index: 20;
+    display: flex; gap: 6px;
+  }
+  #langSwitch button {
+    font-size: 11px; padding: 6px 10px;
+    text-transform: none; letter-spacing: 0;
+  }
+  #langSwitch button.on {
+    background: var(--burgundy);
+    color: var(--accent);
+    border-color: var(--accent);
+  }

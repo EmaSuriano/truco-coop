@@ -18,6 +18,7 @@ import {
   trucoRank,
   envidoOf,
 } from './deck'
+import { t, onLocale } from './i18n'
 
 type ChantName = 'envido' | 'real' | 'falta' | 'truco' | 'retruco' | 'vale'
 type ActName = ChantName | 'play' | 'quiero' | 'no'
@@ -878,46 +879,83 @@ export function startGame(
     return []
   }
 
+  function actorSeat(pub: Pub | null): number | null {
+    if (!pub || pub.winnerTeam !== null) return null
+    if (pub.phase === 'wait' || pub.phase === 'done' || pub.phase === 'between') return null
+    if (pub.pending) {
+      for (let s = 0; s < seats; s++) {
+        const legal = pub.legal[s] || []
+        if (legal.includes('quiero') || legal.includes('no')) return s
+      }
+      return null
+    }
+    if (pub.phase === 'play') return pub.turn
+    return null
+  }
+
   function refreshHud() {
     const pub = lastPub
     const handEl = document.getElementById('hudHand')
     const turnEl = document.getElementById('hudTurn')
     const scoreEl = document.getElementById('hudScore')
+    const banner = document.getElementById('turnBanner')
+    const hint = document.getElementById('actionHint')
+    const usEl = document.getElementById('scoreUs')
+    const themEl = document.getElementById('scoreThem')
+    const usCap = document.getElementById('scoreUsCap')
+    const themCap = document.getElementById('scoreThemCap')
     if (handEl) {
-      handEl.textContent = mySeat < 0 ? 'spectating' : myHand.map(cardLabel).join(' ') || '—'
+      handEl.textContent = mySeat < 0 ? t('spectating') : myHand.map(cardLabel).join(' ') || '—'
     }
-    if (turnEl) {
-      if (!pub) turnEl.textContent = '—'
-      else if (pub.winnerTeam !== null) turnEl.textContent = `match over (team ${pub.winnerTeam})`
-      else if (pub.pending) {
-        turnEl.textContent = `${chantLabel(pub.pending.ladder[pub.pending.ladder.length - 1] || pub.lastChant)} — respond`
-      } else if (pub.phase === 'wait') turnEl.textContent = `waiting ${pub.seatsFilled}/${pub.seatCount || seats}`
-      else if (pub.turn === mySeat) turnEl.textContent = 'your turn'
-      else turnEl.textContent = `P${pub.turn}`
-    }
+    const actor = actorSeat(pub)
+    let turnText = '—'
+    if (!pub) turnText = '—'
+    else if (pub.winnerTeam !== null) turnText = t('matchOver', { team: pub.winnerTeam })
+    else if (pub.phase === 'wait') turnText = t('waitingHud', { filled: pub.seatsFilled, seats: pub.seatCount || seats })
+    else if (pub.pending) {
+      const chant = chantLabel(pub.pending.ladder[pub.pending.ladder.length - 1] || pub.lastChant)
+      turnText = actor === mySeat ? t('youAnswer', { chant }) : actor !== null ? t('pAnswers', { chant, n: actor }) : chant
+    } else if (actor === mySeat) turnText = t('yourTurn')
+    else if (actor !== null) turnText = t('pPlays', { n: actor })
+    if (turnEl) turnEl.textContent = turnText
+    if (banner) banner.textContent = turnText
+
+    const cap = pub ? pub.target || target : target
+    const origin = mySeat < 0 ? 0 : mySeat
+    const us = teamOf(origin, seats)
+    const them = (us + 1) % TEAM_COUNT
+    const usScore = pub ? pub.scores[us] ?? 0 : 0
+    const themScore = pub ? pub.scores[them] ?? 0 : 0
     if (scoreEl) {
       if (!pub) scoreEl.textContent = '—'
-      else {
-        const cap = pub.target || target
-        if (mySeat < 0) scoreEl.textContent = `${pub.scores[0] ?? 0}/${cap}–${pub.scores[1] ?? 0}/${cap}`
-        else {
-          const us = teamOf(mySeat, seats)
-          const them = (us + 1) % TEAM_COUNT
-          scoreEl.textContent = `US ${pub.scores[us] ?? 0}/${cap}  THEM ${pub.scores[them] ?? 0}/${cap}`
-        }
-      }
+      else if (mySeat < 0) scoreEl.textContent = `${pub.scores[0] ?? 0}/${cap}–${pub.scores[1] ?? 0}/${cap}`
+      else scoreEl.textContent = `${t('us')} ${usScore}/${cap}  ${t('them')} ${themScore}/${cap}`
     }
+    if (usEl) usEl.textContent = String(usScore)
+    if (themEl) themEl.textContent = String(themScore)
+    if (usCap) usCap.textContent = `/${cap}`
+    if (themCap) themCap.textContent = `/${cap}`
+
     const legal = localLegal()
     for (const { name, id } of BTN_IDS) {
       const el = document.getElementById(id) as HTMLButtonElement | null
       if (!el) continue
       el.disabled = !legal.includes(name)
     }
+    if (hint) {
+      if (legal.includes('quiero') || legal.includes('no')) hint.textContent = t('answerChant')
+      else if (legal.includes('play')) hint.textContent = t('clickCard')
+      else if (legal.length > 0) hint.textContent = t('yourChants')
+      else if (actor !== null && actor !== mySeat) hint.textContent = t('waitingOn', { n: actor })
+      else hint.textContent = ''
+    }
   }
 
   function refreshUi() {
     refreshHud()
   }
+
+  onLocale(refreshHud)
 
   for (const { name, id } of BTN_IDS) {
     const el = document.getElementById(id)
@@ -1025,39 +1063,16 @@ export function startGame(
     const pub = lastPub
     const origin = mySeat < 0 ? 0 : mySeat
 
-    k.drawText({
-      text: isHost ? 'HOST' : mySeat < 0 ? 'SPECTATE' : `JOIN · P${mySeat}`,
-      pos: k.vec2(WIDTH / 2, 18),
-      size: 14,
-      color: hexColor(isHost ? HOST_COLOR : JOIN_COLOR),
-      anchor: 'center',
-    })
-
     if (pub) {
-      const us = origin < 0 ? 0 : teamOf(origin, seats)
-      const them = (us + 1) % TEAM_COUNT
-      const usScore = pub.scores[us] ?? 0
-      const themScore = pub.scores[them] ?? 0
-      const cap = pub.target || target
-      const usHalf = cap <= MALAS ? '' : usScore < MALAS ? ' (malas)' : ' (buenas)'
-      const themHalf = cap <= MALAS ? '' : themScore < MALAS ? ' (malas)' : ' (buenas)'
-      k.drawText({
-        text: `US ${usScore}/${cap}${usHalf}   THEM ${themScore}/${cap}${themHalf}`,
-        pos: k.vec2(WIDTH / 2, 36),
-        size: 16,
-        color: hexColor('#e7e9ee'),
-        anchor: 'center',
-      })
-
       let banner = pub.log
-      if (pub.winnerTeam !== null) banner = `Team ${pub.winnerTeam} wins the match`
+      if (pub.winnerTeam !== null) banner = t('teamWins', { team: pub.winnerTeam })
       else if (pub.pending) {
         banner = `${chantLabel(pub.pending.ladder[pub.pending.ladder.length - 1] || '')}  want ${pub.pending.want} / no ${pub.pending.no}`
-      } else if (pub.phase === 'play' && pub.turn === mySeat) banner = 'Your turn — click a card or chant'
+      }
       k.drawText({
         text: banner,
-        pos: k.vec2(WIDTH / 2, 54),
-        size: 13,
+        pos: k.vec2(WIDTH / 2, 88),
+        size: 14,
         color: hexColor('#f2b84b'),
         anchor: 'center',
       })
@@ -1068,20 +1083,54 @@ export function startGame(
       const vis = visOf(seat)
       const a = seatAnchor(vis)
       const you = seat === mySeat
-      const tag = you ? `YOU P${seat}` : `P${seat}`
+      const actor = actorSeat(pub)
+      const legalHere = pub ? pub.legal[seat] || [] : []
+      const isActor = pub && pub.pending
+        ? legalHere.includes('quiero') || legalHere.includes('no')
+        : actor === seat
+      const tag = you ? `${t('you')} P${seat}` : `P${seat}`
+      const tagY = vis === 0 ? a.y + 8 : a.y - 46
+      if (isActor) {
+        k.drawRect({
+          pos: k.vec2(a.x - 52, tagY - 28),
+          width: 104,
+          height: 22,
+          radius: 6,
+          color: hexColor('#8a1c28'),
+          outline: { width: 2, color: hexColor('#e0b84a') },
+        })
+        k.drawText({
+          text: pub && pub.pending ? t('answers') : t('plays'),
+          pos: k.vec2(a.x, tagY - 17),
+          size: 12,
+          color: hexColor('#f2d48a'),
+          anchor: 'center',
+        })
+      }
       k.drawText({
         text: tag + (pub && seat === pub.dealer ? ' · pie' : '') + (pub && seat === pub.mano ? ' · mano' : ''),
-        pos: k.vec2(a.x, vis === 0 ? a.y + 8 : a.y - 46),
-        size: 12,
-        color: hexColor(you ? HOST_COLOR : '#d7dbe6'),
+        pos: k.vec2(a.x, tagY),
+        size: isActor ? 16 : 12,
+        color: hexColor(isActor ? '#f2d48a' : you ? HOST_COLOR : '#d7dbe6'),
         anchor: 'center',
       })
 
       if (vis === 0 && mySeat >= 0) {
         const layout = localCardLayout()
+        const canPlay = localLegal().includes('play')
         for (const h of layout) {
           const card = myHand[h.i]
-          if (card) drawCardFace(h.x, h.y, h.w, h.h, card)
+          if (!card) continue
+          if (canPlay) {
+            k.drawRect({
+              pos: k.vec2(h.x - 4, h.y - 4),
+              width: h.w + 8,
+              height: h.h + 8,
+              radius: 8,
+              color: hexColor('#e0b84a'),
+            })
+          }
+          drawCardFace(h.x, h.y, h.w, h.h, card)
         }
       } else {
         const n = leftCounts[seat] ?? 0
