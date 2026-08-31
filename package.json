@@ -2,9 +2,21 @@
   "name": "truco-coop",
   "private": true,
   "type": "module",
-  "description": "4-player Argentine Truco over peer-to-peer (Kaplay + Trystero). No Flor, 30-point chico.",
+  "description": "4-player Argentine Truco over peer-to-peer (HTML+CSS+JS + Trystero). No Flor, 30-point chico.",
   "homepage": "https://emasuriano.github.io/truco-coop/",
-  "keywords": ["truco", "argentina", "kaplay", "trystero", "webrtc", "coop", "multiplayer", "vite", "typescript", "p2p"],
+  "keywords": [
+    "truco",
+    "argentina",
+    "html",
+    "css",
+    "trystero",
+    "webrtc",
+    "coop",
+    "multiplayer",
+    "vite",
+    "typescript",
+    "p2p"
+  ],
   "license": "MIT",
   "scripts": {
     "dev": "vite",
@@ -13,7 +25,6 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "kaplay": "^3001.0.19",
     "@trystero-p2p/mqtt": "0.25.3"
   },
   "devDependencies": {

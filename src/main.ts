@@ -43,7 +43,7 @@ const copyBtn = required<HTMLButtonElement>('copyBtn')
 const statusEl = required<HTMLElement>('status')
 const gameWrap = required<HTMLElement>('gameWrap')
 const peerCountEl = required<HTMLElement>('peerCount')
-const gameCanvas = required<HTMLCanvasElement>('gameCanvas')
+const felt = required<HTMLElement>('felt')
 
 function showError(msg: string) {
   overlay.style.display = 'flex'
@@ -70,7 +70,7 @@ function go(code: string) {
   gameWrap.style.display = 'flex'
   const tableSize = isHost ? readTableSize() : 2
   const targetScore = isHost ? readTargetScore() : 15
-  startGame(room, { isHost, canvas: gameCanvas, peerCountEl, tableSize, targetScore })
+  startGame(room, { isHost, felt, peerCountEl, tableSize, targetScore })
 }
 
 copyBtn.addEventListener('click', () => {
