@@ -127,6 +127,20 @@ export function Felt({ view, onPlay }: { view: ViewState; onPlay: (i: number) =>
   onPlayRef.current = onPlay
   const viewRef = useRef(view)
   viewRef.current = view
+  const [focusIdx, setFocusIdx] = useState(-1)
+  const focusIdxRef = useRef(focusIdx)
+  focusIdxRef.current = focusIdx
+
+  function playViz(id: string) {
+    const vizCard = engine.current.hand.find((c) => c.id === id)
+    if (!vizCard?.card) return
+    const idx = viewRef.current.myHand.findIndex((c) => sameCard(c, vizCard.card!))
+    if (idx >= 0) onPlayRef.current(idx)
+  }
+
+  function localHandOf(list: VizCard[]) {
+    return list.filter((c) => c.kind === 'local').sort((a, b) => a.x - b.x)
+  }
 
   function flush() {
     const e = engine.current
@@ -419,6 +433,78 @@ export function Felt({ view, onPlay }: { view: ViewState; onPlay: (i: number) =>
     dimLocal()
   }, [view])
 
+  const localHand = localHandOf(cards)
+
+  useEffect(() => {
+    const n = localHand.length
+    setFocusIdx((prev) => {
+      if (n === 0) return -1
+      if (prev < 0) return 0
+      if (prev >= n) return n - 1
+      return prev
+    })
+  }, [localHand.length])
+
+  useEffect(() => {
+    function typingTarget(target: EventTarget | null) {
+      if (!(target instanceof HTMLElement)) return false
+      const tag = target.tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return true
+      return target.isContentEditable
+    }
+
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.isComposing) return
+      if (typingTarget(event.target)) return
+      if (viewRef.current.mySeat < 0) return
+
+      const hand = localHandOf(engine.current.hand)
+      const n = hand.length
+      const key = event.key
+      const code = event.code
+
+      if (key === 'ArrowLeft' || key === 'ArrowRight' || key === 'Home' || key === 'End') {
+        if (n === 0) return
+        event.preventDefault()
+        setFocusIdx((prev) => {
+          const cur = prev < 0 ? 0 : prev
+          if (key === 'ArrowLeft') return (cur - 1 + n) % n
+          if (key === 'ArrowRight') return (cur + 1) % n
+          if (key === 'Home') return 0
+          return n - 1
+        })
+        return
+      }
+
+      if (key === 'Enter' || key === ' ' || code === 'Space') {
+        if (n === 0) return
+        if (event.repeat) return
+        event.preventDefault()
+        const i = focusIdxRef.current
+        const viz = i >= 0 ? hand[i] : undefined
+        if (viz && !viz.illegal) playViz(viz.id)
+        return
+      }
+
+      let digit = 0
+      if (key === '1' || key === '2' || key === '3') digit = Number(key)
+      else if (code === 'Digit1' || code === 'Numpad1') digit = 1
+      else if (code === 'Digit2' || code === 'Numpad2') digit = 2
+      else if (code === 'Digit3' || code === 'Numpad3') digit = 3
+      if (!digit) return
+      if (n === 0) return
+      if (event.repeat) return
+      event.preventDefault()
+      const viz = hand[digit - 1]
+      if (!viz || viz.illegal) return
+      setFocusIdx(digit - 1)
+      playViz(viz.id)
+    }
+
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [])
+
   const pub = view.lastPub
   const seats = pub?.seatCount === 4 ? 4 : 2
   const me = view.mySeat
@@ -483,11 +569,11 @@ export function Felt({ view, onPlay }: { view: ViewState; onPlay: (i: number) =>
             <CardView
               key={viz.id}
               viz={viz}
+              focused={viz.kind === 'local' && focusIdx >= 0 && localHand[focusIdx]?.id === viz.id}
               onPlay={(id) => {
-                const vizCard = engine.current.hand.find((c) => c.id === id)
-                if (!vizCard?.card) return
-                const idx = viewRef.current.myHand.findIndex((c) => sameCard(c, vizCard.card!))
-                if (idx >= 0) onPlayRef.current(idx)
+                const fi = localHandOf(engine.current.hand).findIndex((c) => c.id === id)
+                if (fi >= 0) setFocusIdx(fi)
+                playViz(id)
               }}
             />
           ))}
