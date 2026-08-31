@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence, useAnimate } from 'motion/react'
-import { WIDTH, HEIGHT } from '../config'
+import { WIDTH, HEIGHT, teamOf } from '../config'
 import type { Card as CardData } from '../deck'
+import { cardId, sameCard } from '../deck'
 import { actorSeat, chantLabel } from '../game'
 import type { ViewState } from '../game'
 import { t } from '../i18n'
@@ -14,12 +15,13 @@ type Engine = {
   hand: VizCard[]
   opp: VizCard[][]
   trick: VizCard[]
+  won: VizCard[]
   reveal: VizCard[]
-  flying: VizCard[]
   prevTrickLen: number
   lastDealN: number
   lastChantN: number
   revealing: boolean
+  dealing: boolean
   dealGen: number
   nid: number
 }
@@ -56,6 +58,43 @@ function trickPos(seat: number, mySeat: number, seats: number) {
   return { x: cx, y: cy }
 }
 
+function seatForWon(mark: number | 'parda', turn: number, seats: number): number | null {
+  if (mark === 'parda') return null
+  if (teamOf(turn, seats) === mark) return turn
+  for (let s = 0; s < seats; s++) {
+    if (teamOf(s, seats) === mark) return s
+  }
+  return turn
+}
+
+function wonPos(
+  mark: number | 'parda',
+  pileIndex: number,
+  cardIndex: number,
+  mySeat: number,
+  seats: number,
+  turn: number,
+) {
+  const fanX = (cardIndex - 1) * 11
+  const fanY = cardIndex * 3
+  const yaw = (cardIndex - 1) * 7
+  if (mark === 'parda') {
+    return {
+      x: WIDTH / 2 + fanX + pileIndex * 16,
+      y: HEIGHT / 2 + 6 + fanY,
+      yaw,
+    }
+  }
+  const seat = seatForWon(mark, turn, seats) ?? turn
+  const vis = visOf(seat, mySeat, seats)
+  const a = seatAnchor(vis)
+  const pile = pileIndex * 20
+  if (vis === 0) return { x: a.x + 188 + fanX + pile, y: a.y - 86 + fanY, yaw }
+  if (vis === 2) return { x: a.x + 188 + fanX + pile, y: a.y + 78 + fanY, yaw }
+  if (vis === 1) return { x: a.x + 78 + fanX, y: a.y + 92 + fanY + pile, yaw }
+  return { x: a.x - 78 + fanX, y: a.y + 92 + fanY + pile, yaw }
+}
+
 function localLegal(view: ViewState): string[] {
   if (view.mySeat < 0) return []
   if (view.lastPub && view.lastPub.legal[view.mySeat]) return view.lastPub.legal[view.mySeat]!
@@ -72,12 +111,13 @@ export function Felt({ view, onPlay }: { view: ViewState; onPlay: (i: number) =>
     hand: [],
     opp: [[], [], [], []],
     trick: [],
+    won: [],
     reveal: [],
-    flying: [],
     prevTrickLen: 0,
     lastDealN: -1,
     lastChantN: -1,
     revealing: false,
+    dealing: false,
     dealGen: 0,
     nid: 0,
   })
@@ -88,7 +128,7 @@ export function Felt({ view, onPlay }: { view: ViewState; onPlay: (i: number) =>
 
   function flush() {
     const e = engine.current
-    setCards([...e.hand.filter(Boolean), ...e.opp.flat(), ...e.trick, ...e.reveal, ...e.flying])
+    setCards([...e.won, ...e.hand.filter(Boolean), ...e.opp.flat(), ...e.trick, ...e.reveal])
   }
 
   function makeCard(
@@ -125,7 +165,6 @@ export function Felt({ view, onPlay }: { view: ViewState; onPlay: (i: number) =>
     const e = engine.current
     const seats = pub.seatCount === 4 ? 4 : pub.seatCount === 2 ? 2 : 2
     const me = view.mySeat
-    const hand = view.myHand
 
     function dimLocal() {
       const can = localLegal(viewRef.current).includes('play')
@@ -135,14 +174,59 @@ export function Felt({ view, onPlay }: { view: ViewState; onPlay: (i: number) =>
       flush()
     }
 
+    function restackHand(moveDuration = 0.32) {
+      const n = e.hand.length
+      e.hand.forEach((o, i) => {
+        const rest = localRest(i, n)
+        if (o.x === rest.x && o.y === rest.y) return
+        o.x = rest.x
+        o.y = rest.y
+        o.duration = moveDuration
+      })
+    }
+
+    function liveHand(): CardData[] {
+      return viewRef.current.myHand
+    }
+
+    function trickHas(card: CardData): boolean {
+      if (pub.trick.some((p) => sameCard(p.card, card))) return true
+      if (e.trick.some((o) => o.card && sameCard(o.card, card))) return true
+      if (e.won.some((o) => o.card && sameCard(o.card, card))) return true
+      return false
+    }
+
+    function visualizedIds(): Set<string> {
+      const ids = new Set<string>()
+      for (const o of e.hand) {
+        if (o?.card) ids.add(cardId(o.card))
+      }
+      return ids
+    }
+
+    function placeInTrick(obj: VizCard, seat: number, card: CardData) {
+      const dest = trickPos(seat, me, seats)
+      obj.kind = 'trick'
+      obj.illegal = false
+      obj.face = true
+      obj.card = card
+      obj.fromCenter = false
+      obj.duration = 0.28
+      obj.yaw = seat % 2 === 0 ? 6 : -5
+      obj.x = dest.x
+      obj.y = dest.y
+      e.trick.push(obj)
+    }
+
     function runDeal() {
       e.dealGen += 1
       const gen = e.dealGen
+      e.dealing = true
       clearGroup(e.hand)
       for (const list of e.opp) clearGroup(list)
       clearGroup(e.trick)
+      clearGroup(e.won)
       clearGroup(e.reveal)
-      clearGroup(e.flying)
       e.revealing = false
       e.prevTrickLen = 0
       flush()
@@ -157,14 +241,17 @@ export function Felt({ view, onPlay }: { view: ViewState; onPlay: (i: number) =>
           window.setTimeout(() => {
             if (gen !== e.dealGen) return
             if (seat === me && me >= 0) {
-              const card = hand[i] || null
-              const dest = localRest(i, 3)
-              const obj = makeCard(dest.x, dest.y, 'local', card, !!card, {
+              const live = liveHand()
+              const have = visualizedIds()
+              const nextCard = live.find((c) => !have.has(cardId(c)) && !trickHas(c))
+              if (!nextCard) return
+              const obj = makeCard(WIDTH / 2, HEIGHT / 2, 'local', nextCard, true, {
                 fromCenter: true,
                 fromRotate,
                 duration: 0.4,
               })
-              e.hand[i] = obj
+              e.hand.push(obj)
+              restackHand(0.4)
               flush()
             } else {
               const dest = oppRest(seat, i, 3, me, seats)
@@ -181,69 +268,91 @@ export function Felt({ view, onPlay }: { view: ViewState; onPlay: (i: number) =>
       }
       window.setTimeout(() => {
         if (gen !== e.dealGen) return
+        e.dealing = false
+        reconcileHand()
         dimLocal()
       }, n * 80 + 350)
     }
 
     function flyToTrick(play: { seat: number; card: CardData }) {
+      if (e.trick.some((o) => o.card && sameCard(o.card, play.card))) {
+        dimLocal()
+        return
+      }
       const dest = trickPos(play.seat, me, seats)
       let obj: VizCard | null = null
       if (play.seat === me) {
-        const idx = e.hand.findIndex(
-          (o) => o && o.card && o.card.suit === play.card.suit && o.card.rank === play.card.rank,
-        )
-        const take = idx >= 0 ? idx : e.hand.length - 1
-        obj = e.hand[take] || null
-        if (obj) e.hand.splice(take, 1)
-        const n = e.hand.length
-        e.hand.forEach((o, i) => {
-          const rest = localRest(i, n)
-          o.x = rest.x
-          o.y = rest.y
-          o.duration = 0.32
-        })
+        const idx = e.hand.findIndex((o) => o && o.card && sameCard(o.card, play.card))
+        if (idx >= 0) {
+          obj = e.hand[idx] || null
+          if (obj) e.hand.splice(idx, 1)
+          restackHand()
+        }
       } else {
         const pile = e.opp[play.seat]
         obj = pile && pile.length ? pile.pop()! : null
       }
       if (!obj) {
-        obj = makeCard(dest.x, dest.y, 'trick', play.card, true, { duration: 0.28, yaw: 0 })
+        obj = makeCard(dest.x, dest.y, 'trick', play.card, true, {
+          duration: 0.28,
+          yaw: play.seat % 2 === 0 ? 6 : -5,
+        })
+        e.trick.push(obj)
       } else {
-        obj.kind = 'trick'
-        obj.illegal = false
-        obj.face = true
-        obj.card = play.card
-        obj.fromCenter = false
-        obj.duration = 0.28
-        obj.yaw = play.seat % 2 === 0 ? 6 : -5
+        placeInTrick(obj, play.seat, play.card)
       }
-      e.trick.push(obj)
-      obj.x = dest.x
-      obj.y = dest.y
       dimLocal()
     }
 
     function sweepTrick() {
       const last = pub.trickWins[pub.trickWins.length - 1]
-      let dest = { x: WIDTH / 2, y: HEIGHT / 2 }
-      if (last !== undefined && last !== 'parda') {
-        const winSeat = typeof pub.turn === 'number' ? pub.turn : last
-        dest = seatAnchor(visOf(winSeat, me, seats))
-      }
+      const mark: number | 'parda' = last === undefined ? 'parda' : last
       const moving = e.trick.slice()
       e.trick.length = 0
-      e.flying = moving
-      for (const o of moving) {
+      const pileIndex = Math.max(0, pub.trickWins.length - 1)
+      moving.forEach((o, i) => {
+        const dest = wonPos(mark, pileIndex, i, me, seats, pub.turn)
+        o.kind = 'won'
+        o.illegal = false
+        o.face = true
+        o.fromCenter = false
+        o.duration = 0.4
+        o.yaw = dest.yaw
         o.x = dest.x
         o.y = dest.y
-        o.duration = 0.4
-        o.yaw = o.yaw * 0.4
-      }
+        e.won.push(o)
+      })
       flush()
-      window.setTimeout(() => {
-        if (e.flying === moving) e.flying = []
-        flush()
-      }, 400)
+    }
+
+    function reconcileHand() {
+      const live = liveHand()
+      const liveIds = new Set(live.map(cardId))
+      const staying: VizCard[] = []
+      const leaving: VizCard[] = []
+      for (const o of e.hand) {
+        if (!o) continue
+        if (o.card && liveIds.has(cardId(o.card)) && !trickHas(o.card)) staying.push(o)
+        else leaving.push(o)
+      }
+      for (const o of leaving) {
+        if (!o.card) continue
+        if (e.trick.some((t) => t.card && sameCard(t.card, o.card!))) continue
+        if (e.won.some((t) => t.card && sameCard(t.card, o.card!))) continue
+        placeInTrick(o, me >= 0 ? me : 0, o.card)
+      }
+      e.hand = staying
+      if (!e.dealing) {
+        const have = visualizedIds()
+        for (const c of live) {
+          const id = cardId(c)
+          if (have.has(id) || trickHas(c)) continue
+          const dest = localRest(e.hand.length, live.length)
+          e.hand.push(makeCard(dest.x, dest.y, 'local', c, true, { duration: 0.32 }))
+          have.add(id)
+        }
+      }
+      restackHand()
     }
 
     function flipReveal() {
@@ -266,13 +375,6 @@ export function Felt({ view, onPlay }: { view: ViewState; onPlay: (i: number) =>
       e.lastDealN = pub.sfxN
       runDeal()
     }
-    if (hand.length > 0) {
-      e.hand.forEach((o, i) => {
-        if (!o || !hand[i] || o.face) return
-        o.card = hand[i]!
-        o.face = true
-      })
-    }
     if (pub.sfx === 'chant' && typeof pub.sfxN === 'number' && pub.sfxN !== e.lastChantN) {
       e.lastChantN = pub.sfxN
       if (pub.lastChant === 'truco' || pub.lastChant === 'retruco' || pub.lastChant === 'vale') {
@@ -293,6 +395,7 @@ export function Felt({ view, onPlay }: { view: ViewState; onPlay: (i: number) =>
       sweepTrick()
     }
     e.prevTrickLen = pub.trick.length
+    reconcileHand()
     if (pub.reveal && pub.reveal.length > 0) flipReveal()
     else if (e.revealing && (!pub.reveal || pub.reveal.length === 0)) {
       clearGroup(e.reveal)
@@ -361,7 +464,9 @@ export function Felt({ view, onPlay }: { view: ViewState; onPlay: (i: number) =>
               key={viz.id}
               viz={viz}
               onPlay={(id) => {
-                const idx = engine.current.hand.findIndex((c) => c && c.id === id)
+                const vizCard = engine.current.hand.find((c) => c && c.id === id)
+                if (!vizCard?.card) return
+                const idx = viewRef.current.myHand.findIndex((c) => sameCard(c, vizCard.card!))
                 if (idx >= 0) onPlayRef.current(idx)
               }}
             />
