@@ -1,6 +1,6 @@
 # Truco Coop
 
-Argentine Truco in the browser. Host a room, pick 2 players (1v1) or 4 players (2v2), share the link. Play to 30 points (un chico). No Flor.
+Argentine Truco in the browser. Host a room, pick 2 players (1v1) or 4 players (2v2) and 15 or 30 points, share the link. No Flor.
 
 Rules: https://www.envidoytruco.com/en/rules/truco-argentino
 
@@ -12,7 +12,7 @@ Demo: https://emasuriano.github.io/truco-coop/
 npm install
 npm run dev
 
-Open http://localhost:3000. Host chooses 2 (1v1) or 4 (2v2) then Create Room, and pastes the link into the other tabs. Extra peers do not sit.
+Open http://localhost:3000. Host chooses table size (2 or 4) and chico (15 or 30, default 30) then Create Room, and pastes the link into the other tabs. Extra peers do not sit.
 
 2-player: two teams of one, no partner. Deal 3, counterclockwise, mano is still the dealer's right. Envido/truco same; only one player per team answers chants.
 
@@ -32,7 +32,7 @@ APP_ID is truco-coop in src/config.ts. Leave src/net.ts as-is. Lobby flow in src
 
 ## Rules (v1)
 
-No Flor. Target 30 (malas 0-14, buenas 15-30). Spanish 40-card deck. 3 cards each. Envido and Truco follow the official rules. Host chooses table size (2 or 4).
+No Flor. Host chooses table size (2 or 4) and chico (15 or 30). At 30, malas 0-14 and buenas 15-30. At 15 there are no buenas; falta envido is points remaining to 15. Spanish 40-card deck. 3 cards each. Envido and Truco follow the official rules.
 
 ## Scripts
 
