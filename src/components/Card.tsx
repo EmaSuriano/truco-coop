@@ -54,9 +54,19 @@ function FaceArt({
   )
 }
 
-export function CardView({ viz, onPlay }: { viz: VizCard; onPlay?: (id: string) => void }) {
+const LIFT = { y: -12, boxShadow: '0 14px 18px rgba(0,0,0,0.45)' }
+
+export function CardView({
+  viz,
+  onPlay,
+  focused,
+}: {
+  viz: VizCard
+  onPlay?: (id: string) => void
+  focused?: boolean
+}) {
   const playable = viz.kind === 'local' && !viz.illegal
-  const cls = ['card', viz.kind, viz.face ? '' : 'back', viz.illegal ? 'illegal' : '']
+  const cls = ['card', viz.kind, viz.face ? '' : 'back', viz.illegal ? 'illegal' : '', focused ? 'kb-focus' : '']
     .filter(Boolean)
     .join(' ')
 
@@ -105,9 +115,8 @@ export function CardView({ viz, onPlay }: { viz: VizCard; onPlay?: (id: string) 
       ) : (
         <motion.div
           className="card-inner"
-          whileHover={
-            playable ? { y: -12, boxShadow: '0 14px 18px rgba(0,0,0,0.45)' } : undefined
-          }
+          animate={focused ? LIFT : { y: 0, boxShadow: '0 0 0 rgba(0,0,0,0)' }}
+          whileHover={playable ? LIFT : undefined}
           whileTap={playable ? { y: -2, scale: 0.98 } : undefined}
           transition={{ ...TWEEN, duration: 0.14 }}
         >

@@ -400,6 +400,11 @@
     z-index: 20;
     cursor: pointer;
   }
+  .card.local.kb-focus {
+    z-index: 21;
+    outline: 2px solid var(--accent, #EB7D00);
+    outline-offset: 2px;
+  }
   .card.illegal { opacity: 0.4; pointer-events: none; }
   .card-inner {
     position: relative;
