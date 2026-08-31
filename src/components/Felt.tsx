@@ -440,15 +440,17 @@ export function Felt({ view, onPlay }: { view: ViewState; onPlay: (i: number) =>
       const a = seatAnchor(vis)
       const you = seat === me
       const isActor = actor === seat
+      const offline = !!pub.disconnected?.[seat]
       const roles: string[] = []
       if (seat === pub.dealer) roles.push('pie')
       if (seat === pub.mano) roles.push('mano')
+      if (offline) roles.push(t('seatOffline'))
       const name = you ? `${t('you')} P${seat}` : `P${seat}`
       const tagY = vis === 0 ? a.y + 8 : a.y - 46
       seatsUi.push(
         <div
           key={'tag' + seat}
-          className={'seat-tag' + (you ? ' you' : '') + (isActor ? ' actor' : '')}
+          className={'seat-tag' + (you ? ' you' : '') + (isActor ? ' actor' : '') + (offline ? ' offline' : '')}
           style={{ left: a.x, top: tagY }}
         >
           {name + (roles.length ? ' · ' + roles.join(' · ') : '')}

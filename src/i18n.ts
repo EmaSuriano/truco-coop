@@ -40,6 +40,11 @@ export type Dict = {
   waitingOn: string
   teamWins: string
   fileHint: string
+  disconnected: string
+  waitingReconnect: string
+  hostLeft: string
+  backToLobby: string
+  seatOffline: string
 }
 
 const es: Dict = {
@@ -80,6 +85,11 @@ const es: Dict = {
   waitingOn: 'Esperando a P{n}',
   teamWins: 'Gana el equipo {team}',
   fileHint: 'Usar el servidor de desarrollo, no un archivo.',
+  disconnected: 'desconectado',
+  waitingReconnect: 'Esperando que P{n} vuelva a unirse',
+  hostLeft: 'El anfitrion se fue. La mesa se cerro.',
+  backToLobby: 'Volver al lobby',
+  seatOffline: 'offline',
 }
 
 const en: Dict = {
@@ -120,6 +130,11 @@ const en: Dict = {
   waitingOn: 'Waiting on P{n}',
   teamWins: 'Team {team} wins the match',
   fileHint: 'Open this with the dev server, not as a file.',
+  disconnected: 'disconnected',
+  waitingReconnect: 'Waiting for P{n} to rejoin',
+  hostLeft: 'The host left. This table is closed.',
+  backToLobby: 'Back to lobby',
+  seatOffline: 'offline',
 }
 
 const dicts: Record<Locale, Dict> = { es, en }

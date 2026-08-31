@@ -12,6 +12,7 @@ import {
   createGameState,
   reducer,
   seatsFilled,
+  anyDisconnected,
 } from './reducer'
 
 export type { ActName, ChantName, GameAction, GameState, Pending, Pub, ViewState } from './reducer'
@@ -23,8 +24,76 @@ export type ActMsg =
   | { t: 'quiero' }
   | { t: 'no' }
 
-type HelloMsg = { seat: number }
+type HelloMsg = { seat: number; token: string }
+type ClaimMsg = { token: string }
 type HandMsg = { cards: Card[] }
+
+const CLAIM_PREFIX = 'truco-coop-claim:'
+const CLAIM_WAIT_MS = 1500
+
+function randomToken(): string {
+  const bytes = new Uint8Array(16)
+  crypto.getRandomValues(bytes)
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('')
+}
+
+function claimKey(roomCode: string): string {
+  return CLAIM_PREFIX + roomCode
+}
+
+function readClaimRaw(roomCode: string): string | null {
+  const key = claimKey(roomCode)
+  try {
+    const local = localStorage.getItem(key)
+    if (local) return local
+  } catch {
+    /* ignore */
+  }
+  try {
+    const session = sessionStorage.getItem(key)
+    if (session) {
+      try {
+        localStorage.setItem(key, session)
+      } catch {
+        /* ignore */
+      }
+      return session
+    }
+  } catch {
+    /* ignore */
+  }
+  return null
+}
+
+function loadClaim(roomCode: string): { seat: number; token: string } | null {
+  if (!roomCode) return null
+  try {
+    const raw = readClaimRaw(roomCode)
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as { seat?: unknown; token?: unknown }
+    if (typeof parsed.seat === 'number' && typeof parsed.token === 'string' && parsed.token) {
+      return { seat: parsed.seat, token: parsed.token }
+    }
+  } catch {
+    /* ignore */
+  }
+  return null
+}
+
+function saveClaim(roomCode: string, seat: number, token: string) {
+  if (!roomCode || !token) return
+  const raw = JSON.stringify({ seat, token })
+  try {
+    localStorage.setItem(claimKey(roomCode), raw)
+  } catch {
+    /* ignore */
+  }
+  try {
+    sessionStorage.setItem(claimKey(roomCode), raw)
+  } catch {
+    /* ignore */
+  }
+}
 
 type StoreState = ViewState & { game: GameState }
 
@@ -66,6 +135,7 @@ function viewFrom(game: GameState, lastPub: Pub | null): StoreState {
     lastPub: pub,
     peerCount: game.peerCount,
     isHost: game.isHost,
+    hostGone: game.hostGone,
   }
 }
 
@@ -77,9 +147,10 @@ function randomSeed(): number {
 
 export function startGame(
   room: Room,
-  opts: { isHost: boolean; tableSize?: 2 | 4; targetScore?: 15 | 30 },
+  opts: { isHost: boolean; tableSize?: 2 | 4; targetScore?: 15 | 30; roomCode?: string },
 ): GameStore {
   const { isHost } = opts
+  const roomCode = opts.roomCode || ''
 
   function publicUrl(path: string): string {
     const base = import.meta.env.BASE_URL || '/'
@@ -159,10 +230,15 @@ export function startGame(
   const pubAction = room.makeAction<Pub>('pub')
   const actAction = room.makeAction<ActMsg>('act')
   const cfgAction = room.makeAction<{ n: 2 | 4; target: 15 | 30 }>('cfg')
+  const claimAction = room.makeAction<ClaimMsg>('claim')
 
   const peerOfSeat: (string | null)[] = Array.from({ length: MAX_SEATS }, () => null)
   const seatOfPeer = new Map<string, number>()
+  const seatToken: (string | null)[] = Array.from({ length: MAX_SEATS }, () => null)
+  const pendingJoin = new Map<string, number>()
   const peers = new Set<string>()
+  let hostPeerId: string | null = null
+  let pendingNextDeal = false
 
   const store = createStore<StoreState>(() => viewFrom(createGameState(opts), null))
 
@@ -212,12 +288,28 @@ export function startGame(
     window.setTimeout(() => {
       const g = store.getState().game
       if (g.dealGen !== gen || g.winnerTeam !== null) return
+      if (anyDisconnected(g)) {
+        pendingNextDeal = true
+        return
+      }
       dispatchGame({ type: 'START_HAND' })
       dispatchGame({ type: 'DEAL', seed: randomSeed() })
     }, 2800)
   }
 
+  function maybeResumeDeal() {
+    if (!isHost || !pendingNextDeal) return
+    const g = store.getState().game
+    if (anyDisconnected(g) || g.winnerTeam !== null) return
+    pendingNextDeal = false
+    if (g.phase !== 'between') return
+    dispatchGame({ type: 'START_HAND' })
+    dispatchGame({ type: 'DEAL', seed: randomSeed() })
+  }
+
   function dealFresh() {
+    const g = store.getState().game
+    if (anyDisconnected(g)) return
     dispatchGame({ type: 'START_HAND' })
     dispatchGame({ type: 'DEAL', seed: randomSeed() })
   }
@@ -240,44 +332,92 @@ export function startGame(
   }
 
   function assignSeat(peerId: string): number | null {
-    const seats = store.getState().game.seats
-    for (let s = 1; s < seats; s++) {
-      if (!peerOfSeat[s]) {
-        peerOfSeat[s] = peerId
-        seatOfPeer.set(peerId, s)
-        return s
-      }
+    const g = store.getState().game
+    for (let s = 1; s < g.seats; s++) {
+      if (peerOfSeat[s] || seatToken[s] || g.occupied[s]) continue
+      peerOfSeat[s] = peerId
+      seatOfPeer.set(peerId, s)
+      seatToken[s] = randomToken()
+      return s
     }
     return null
   }
 
-  function greetPeer(peerId: string) {
-    const isNew = !peers.has(peerId)
-    peers.add(peerId)
-    if (!isHost) {
-      if (isNew) dispatchGame({ type: 'PEER_JOIN', seat: null })
-      return
+  function clearJoinTimer(peerId: string) {
+    const t = pendingJoin.get(peerId)
+    if (t !== undefined) {
+      window.clearTimeout(t)
+      pendingJoin.delete(peerId)
     }
-    let seat = seatOfPeer.get(peerId)
-    if (seat === undefined) {
-      const assigned = assignSeat(peerId)
-      const g = store.getState().game
-      if (assigned === null) {
-        void cfgAction.send({ n: g.seats, target: g.target }, { target: peerId })
-        if (isNew) dispatchGame({ type: 'PEER_JOIN', seat: null })
-        return
-      }
-      seat = assigned
-    }
+  }
+
+  function sendSeatState(peerId: string, seat: number) {
     const g = store.getState().game
     void cfgAction.send({ n: g.seats, target: g.target }, { target: peerId })
-    void helloAction.send({ seat }, { target: peerId })
-    if (isNew) dispatchGame({ type: 'PEER_JOIN', seat })
+    void helloAction.send({ seat, token: seatToken[seat] || '' }, { target: peerId })
+    if (g.hands[seat] && g.hands[seat]!.length > 0) sendHandTo(seat)
+  }
+
+  function afterBind(seat: number) {
     const after = store.getState().game
     if (after.hands[seat] && after.hands[seat]!.length > 0) sendHandTo(seat)
-    if (seatsFilled(after) >= after.seats && after.phase === 'wait') {
+    if (seatsFilled(after) >= after.seats && after.phase === 'wait' && !anyDisconnected(after)) {
       dealFresh()
     }
+    maybeResumeDeal()
+  }
+
+  function assignNewOrSpectate(peerId: string) {
+    if (seatOfPeer.has(peerId)) return
+    const assigned = assignSeat(peerId)
+    if (assigned === null) {
+      const g = store.getState().game
+      void cfgAction.send({ n: g.seats, target: g.target }, { target: peerId })
+      dispatchGame({ type: 'PEER_JOIN', seat: null })
+      return
+    }
+    sendSeatState(peerId, assigned)
+    dispatchGame({ type: 'PEER_JOIN', seat: assigned })
+    afterBind(assigned)
+  }
+
+  function reclaimSeat(peerId: string, seat: number) {
+    const prev = peerOfSeat[seat]
+    if (prev && prev !== peerId) seatOfPeer.delete(prev)
+    const cur = seatOfPeer.get(peerId)
+    if (cur !== undefined && cur !== seat) {
+      peerOfSeat[cur] = null
+      seatToken[cur] = null
+      seatOfPeer.delete(peerId)
+    }
+    peerOfSeat[seat] = peerId
+    seatOfPeer.set(peerId, seat)
+    sendSeatState(peerId, seat)
+    dispatchGame({ type: 'PEER_JOIN', seat })
+    afterBind(seat)
+  }
+
+  function sendClaim() {
+    if (isHost) return
+    if (store.getState().mySeat >= 0) return
+    const claim = loadClaim(roomCode)
+    if (claim && claim.token) void claimAction.send({ token: claim.token })
+  }
+
+  function greetPeer(peerId: string) {
+    peers.add(peerId)
+    if (!isHost) {
+      sendClaim()
+      return
+    }
+    if (seatOfPeer.has(peerId)) return
+    clearJoinTimer(peerId)
+    const t = window.setTimeout(() => {
+      pendingJoin.delete(peerId)
+      if (seatOfPeer.has(peerId)) return
+      assignNewOrSpectate(peerId)
+    }, CLAIM_WAIT_MS)
+    pendingJoin.set(peerId, t)
   }
 
   room.onPeerJoin = (peerId) => {
@@ -286,8 +426,10 @@ export function startGame(
 
   room.onPeerLeave = (peerId) => {
     if (!peers.delete(peerId)) return
+    clearJoinTimer(peerId)
     if (!isHost) {
-      dispatchGame({ type: 'PEER_LEAVE', seat: null })
+      if (hostPeerId && peerId === hostPeerId) dispatchGame({ type: 'HOST_GONE' })
+      else dispatchGame({ type: 'PEER_LEAVE', seat: null })
       return
     }
     const seat = seatOfPeer.get(peerId)
@@ -300,8 +442,32 @@ export function startGame(
     }
   }
 
-  cfgAction.onMessage = (data) => {
+  claimAction.onMessage = (data, context) => {
+    if (!isHost || !data) return
+    const peerId = context.peerId
+    peers.add(peerId)
+    clearJoinTimer(peerId)
+    const token = typeof data.token === 'string' ? data.token : ''
+    let found: number | null = null
+    if (token) {
+      for (let s = 1; s < MAX_SEATS; s++) {
+        if (seatToken[s] && seatToken[s] === token) {
+          found = s
+          break
+        }
+      }
+    }
+    if (found === null) {
+      assignNewOrSpectate(peerId)
+      return
+    }
+    reclaimSeat(peerId, found)
+  }
+
+  cfgAction.onMessage = (data, context) => {
     if (isHost || !data) return
+    if (context?.peerId) hostPeerId = context.peerId
+    sendClaim()
     const seats = data.n === 2 || data.n === 4 ? data.n : undefined
     const target = data.target === 15 || data.target === 30 ? data.target : undefined
     if (seats !== undefined || target !== undefined) {
@@ -309,10 +475,15 @@ export function startGame(
     }
   }
 
-  helloAction.onMessage = (data) => {
+  helloAction.onMessage = (data, context) => {
     if (isHost) return
+    if (context?.peerId) hostPeerId = context.peerId
     if (data && typeof data.seat === 'number') {
       dispatchGame({ type: 'SET_SEAT', seat: data.seat })
+      const token = typeof data.token === 'string' ? data.token : ''
+      saveClaim(roomCode, data.seat, token)
+    } else {
+      sendClaim()
     }
   }
 
@@ -343,6 +514,8 @@ export function startGame(
     for (const peerId of ids) greetPeer(peerId)
   }
 
+  if (!isHost) sendClaim()
+
   return {
     subscribe(fn: () => void) {
       return store.subscribe(fn)
@@ -354,6 +527,8 @@ export function startGame(
       submitAct(act)
     },
     destroy() {
+      for (const t of pendingJoin.values()) window.clearTimeout(t)
+      pendingJoin.clear()
       const bgm = sounds.get('bgm')
       if (bgm) {
         try {

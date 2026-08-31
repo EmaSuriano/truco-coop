@@ -3,12 +3,35 @@ import { startGame } from './game'
 import type { GameStore } from './game'
 import { connectRoom, genCode, shareLink } from './net'
 import { useGame, useLocale } from './hooks'
+import { t } from './i18n'
 import { LangSwitch } from './components/LangSwitch'
 import { Lobby } from './components/Lobby'
 import { Hud } from './components/Hud'
 import { ScoreBoard } from './components/ScoreBoard'
 import { ChantBar } from './components/ChantBar'
 import { Felt } from './components/Felt'
+
+function backToLobby() {
+  const url = new URL(location.href)
+  url.searchParams.delete('room')
+  location.href = url.pathname + url.search + url.hash
+}
+
+function HostGoneOverlay() {
+  useLocale()
+  return (
+    <div id="overlay">
+      <div id="card">
+        <p className="sub">{t('hostLeft')}</p>
+        <div className="row">
+          <button className="primary" type="button" onClick={backToLobby}>
+            {t('backToLobby')}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 function Table({ store }: { store: GameStore }) {
   const view = useGame(store)
@@ -18,6 +41,7 @@ function Table({ store }: { store: GameStore }) {
       <ScoreBoard view={view} />
       <Felt view={view} onPlay={(i) => store.dispatch({ t: 'play', i })} />
       <ChantBar view={view} dispatch={(act) => store.dispatch(act)} />
+      {view.hostGone && !view.isHost ? <HostGoneOverlay /> : null}
     </div>
   )
 }
@@ -39,7 +63,7 @@ export function App() {
       const room = connectRoom(code, (details) => {
         setError(details.error)
       })
-      const next = startGame(room, { isHost: host, tableSize, targetScore })
+      const next = startGame(room, { isHost: host, tableSize, targetScore, roomCode: code })
       setStore(next)
     },
     [],

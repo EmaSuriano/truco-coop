@@ -32,6 +32,7 @@ export function ChantBar({ view, dispatch }: { view: ViewState; dispatch: (act: 
   if (legal.includes('quiero') || legal.includes('no')) hint = t('answerChant')
   else if (legal.includes('play')) hint = t('clickCard')
   else if (legal.length > 0) hint = t('yourChants')
+  else if (actor !== null && view.lastPub?.disconnected?.[actor]) hint = t('waitingReconnect', { n: actor })
   else if (actor !== null && actor !== view.mySeat) hint = t('waitingOn', { n: actor })
 
   function click(name: ActName) {
